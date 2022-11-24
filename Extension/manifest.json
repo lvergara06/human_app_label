@@ -1,0 +1,23 @@
+{
+  "manifest_version": 2,
+  "name": "Protoype",
+  "version": "1.0",
+
+  "background": {
+    "scripts": [ "background.js" ]
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "ping_pong@example.org",
+      "strict_min_version": "50.0"
+    }
+  },
+  "permissions": [
+    "contextMenus",
+    "<all_urls>",
+    "webRequest",
+    "webRequestBlocking",
+    "nativeMessaging",
+    "tabs"
+  ]
+}

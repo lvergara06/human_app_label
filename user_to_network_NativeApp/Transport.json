@@ -1,0 +1,7 @@
+{
+  "name": "Transport",
+  "description": "Send transport layer information from firefox to database",
+  "path": "C:\\Users\\lvergararodr\\source\\repos\\webextensions-examples\\Prototype\\app\\Transport_win.bat",
+  "type": "stdio",
+  "allowed_extensions": [ "ping_pong@example.org" ]
+}
