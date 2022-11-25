@@ -42,6 +42,17 @@ For per-user visibility, store the manifest in:
 3. Edit "Transport_win.bat" to refer to the location of "Transport.py" on your computer.
 4. Add a registry key containing the path to "Transport.json" on your computer. See [App manifest location ](https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Native_manifests#Manifest_location) to find details of the registry key to add.
 
+For global visibility, create a registry key with the following name:
+HKEY_LOCAL_MACHINE\SOFTWARE\Mozilla\NativeMessagingHosts\Transport
+HKEY_LOCAL_MACHINE\SOFTWARE\Mozilla\ManagedStorage\Transport
+HKEY_LOCAL_MACHINE\SOFTWARE\Mozilla\PKCS11Modules\Transport
+The key should have a single default value, which is the path to the manifest.
+
+For per-user visibility, create a registry key with the following name:
+HKEY_CURRENT_USER\SOFTWARE\Mozilla\NativeMessagingHosts\Transport
+HKEY_CURRENT_USER\SOFTWARE\Mozilla\ManagedStorage\Transport
+HKEY_CURRENT_USER\SOFTWARE\Mozilla\PKCS11Modules\Transport
+
 To assist in troubleshooting on Windows, there is a script called `check_config_win.py`. Running this from the command line should give you an idea of any problems
 
 Once the extension is running you should be able to open the log with Ctrl J, visit a website and see the response in console. 
