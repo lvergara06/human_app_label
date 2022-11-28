@@ -7,6 +7,7 @@ The user selection and netstat result is sent to a dedicated database.
 1. Check that the [file permissions](https://en.wikipedia.org/wiki/File_system_permissions) for "Transport.py" include the `execute` permission.
 2. Edit the "path" property of "Transport.json" to point to the location of "Transport.py" on your computer.
 3. copy "Transport.json" to the correct location on your computer. See [App manifest location ](https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Native_manifests#Manifest_location) to find the correct location for your OS.
+
 For MacOS:
 For global visibility, store the manifest in:
 /Library/Application Support/Mozilla/NativeMessagingHosts/Transport.json
