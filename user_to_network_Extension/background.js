@@ -9,17 +9,21 @@
 /*****************************************************************
  * Global Variables
  ****************************************************************/
-let targetPage = "https://*./"; // Which pages trigger the dialog box
+let targetPage = "<all_urls>"; // Which pages trigger the dialog box
 
 let globalHeaders = [];    // Used to pass message to popup window
 let DEBUG = "ON";
 let optionsSendWith = "Python"
+let optionsExtendedWith = "";
+let FirefoxPID = "";
+let popupOptionsList = [];
+let CREATEAPIADDRESS = undefined;
 let redirectNeeded = undefined;  // If the request needs a redirection
 let message = [];                // Message to be passed to native application {state "" , dataIn [] , dataOut [] , errorMessage ""}
 let requests = [];               // Requests made so far
 // {
 // id: "", request id from request headers
-// url: "", url from user 
+// url: "", url from user
 // method: "", get method from request headers
 // type: "", type of object to fetch (in our case only main_frame)
 // timeStamp: 0, epoch time from request headers
@@ -28,7 +32,11 @@ let requests = [];               // Requests made so far
 // originalDestIp: "", the destination ip from response headers if there is redicetion involved
 // globalHdrs: [], messages to pass to pop up windows
 // completedIp: "", destination ip if the compleded ip address is not like the response ip
-// requestStatus: "" the status of this request. 
+// requestStatus: "" the status of this request.
+// extendedData: [], eventData that might want to be saved
+// host: "", domain name of the server
+// port: "", TCP port number on which the server is listening
+// completedTime: "", from Completed Details
 // }
 
 
@@ -44,108 +52,51 @@ function logOnBeforeRequest(eventDetails) {
     if (DEBUG === "ON") {
         console.log("Entrace to logOnBeforeRequest");
         console.log(eventDetails);
+        console.log(requests);
     }
 
     // Create an entry for this request
     // Check if there is an entry for this requestId
-    if (redirectNeeded === undefined) {
-        const requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
-        if (requestHandle === undefined) // Create the request 
-        {
-            newRequest = {
-                id: eventDetails.requestId,
-                url: eventDetails.url,
-                method: eventDetails.method,
-                type: eventDetails.type,
-                timeStamp: eventDetails.timeStamp,
-                tabId: eventDetails.tabId,
-                destinationIp: "",
-                BeforeRedirectDestIp: "",
-                globalHdrs: [],
-                completedIp: "",
-                requestStatus: ""
-            };
-            requests.push(newRequest);
-        }
-        else {
-            // A bit weird if this happens because any given request should not be here twice
+    let requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
+    if (requestHandle === undefined) // Create the request 
+    {
+        newRequest = {
+            id: eventDetails.requestId,
+            url: eventDetails.url,
+            method: eventDetails.method,
+            type: eventDetails.type,
+            timeStamp: eventDetails.timeStamp,
+            tabId: eventDetails.tabId,
+            destinationIp: "",
+            destinationPort: "",
+            BeforeRedirectDestIp: "",
+            globalHdrs: [],
+            completedIp: "",
+            requestStatus: "",
+            extendedData: []
+        };
+        requests.push(newRequest);
+
+        requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
+        if (requestHandle === undefined) {
+            // Should be an error
             // Even redirects get a new request id. 
-            console.log("request found at OnBeforeRequest!");
-            console.log(requestHandle);
+            console.error("Request not found after creating request");
             console.log(eventDetails);
         }
     }
     else {
-        // Redirect needed
-        // Do not let original request go orphaned
-        const redirectHandle = redirectNeeded.find(({ tabId }) => tabId === eventDetails.tabId);
-
-        if (redirectHandle === undefined) {
-            // Redirect was not triggered by this event's tabId
-            // Create the request 
-            const requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
-            if (requestHandle === undefined) // Create the request 
-            {
-                newRequest = {
-                    id: eventDetails.requestId,
-                    url: eventDetails.url,
-                    method: eventDetails.method,
-                    type: eventDetails.type,
-                    timeStamp: eventDetails.timeStamp,
-                    tabId: eventDetails.tabId,
-                    destinationIp: "",
-                    BeforeRedirectDestIp: "",
-                    globalHdrs: [],
-                    completedIp: "",
-                    requestStatus: "Started"
-                };
-                requests.push(newRequest);
-            }
-            else {
-                // A bit weird if this happens because any given request should not be here twice
-                // Even redirects get a new request id. 
-                console.log("request found at OnBeforeRequest!");
-                console.log(requestHandle);
-                console.log(eventDetails);
-            }
+        //Redirected?
+        if (requestHandle.requestStatus != "Redirected") {
+            console.error("Request in before request again without redirection");
+            console.log(requestHandle);
         }
         else {
-            // This event's tab requested the redirect
-            const requestHandle = requests.find(({ id }) => id === redirectHandle.origRequestId);
-            if (requestHandle === undefined) {
-                // What a strange scenario if no original request is found
-                console.log("original request not found for redirect! tabId:" + redirectHandle.tabId + " original request: " + redirectHandle.origRequestId);
-            }
-            else {
-                // Lets use the same request with updated id and timeStamp
-                requestHandle.id = eventDetails.requestId;
-                requestHandle.timeStamp = eventDetails.timeStamp;
-                requestHandle.requestStatus = "Redirected";
-
-                // destroy redirect 
-                redirectIndex = redirectNeeded.findIndex(({ origRequestId }) => origRequestId === redirectHandle.origRequestId);
-                if (redirectIndex === -1) {
-                    // why are we here without a request for this requestId?
-                    console.error("No redirect entry for : " + redirectHandle.origRequestId + "!!!");
-                }
-                else {
-                    requests.splice(redirectIndex, 1);
-                }
-
-                if (redirectNeeded.length === 0) {
-                    redirectNeeded === undefined;
-                }
-            }
+            requestHandle.originalUrl = requestHandle.url;
+            requestHandle.url = eventDetails.url;
         }
     }
 
-    requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
-    if (requestHandle === undefined) {
-        // Should be an error
-        // Even redirects get a new request id. 
-        console.error("Request not found after creating request");
-        console.log(eventDetails);
-    }
     // Save headers to send to popup
     try {
         const urlHdr = requestHandle.globalHdrs.find(({ name }) => name === "url");
@@ -159,6 +110,88 @@ function logOnBeforeRequest(eventDetails) {
         console.log("passing headers failed");
         console.error(err);
     }
+
+    // Get event datails?
+    if (optionsExtendedWith === "All" || optionsExtendedWith.includes("BeforeRequest")) {
+        extendedData = { source: "BeforeRequest", eventDetails: eventDetails };
+        requestHandle.extendedData.push(extendedData);
+    }
+
+}
+
+/* onBeforeSendHeaders Handler
+   This event is triggered before sending any HTTP data, but after all HTTP headers are available.
+   This is a good place to listen if you want to modify HTTP request headers. */
+function logOnBeforeSendHeaders(eventDetails) {
+    if (DEBUG === "ON") {
+        console.log("Entrace to logOnBeforeSendHeaders");
+        console.log(eventDetails);
+        console.log(requests);
+    }
+
+    requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
+    if (requestHandle === undefined) {
+        // Should be an error
+        // Even redirects get a new request id. 
+        console.error("Request not found after creating request");
+        console.log(eventDetails);
+    }
+
+    // Get HOST ip and port number
+    for (let hdr of eventDetails.requestHeaders) {
+        if (hdr.name.toLowerCase() === "host") {
+            requestHandle.host = hdr.value;
+        }
+        if (hdr.name.toLowerCase() === "port") {
+            requestHandle.port = hdr.value;
+        }
+    }
+
+    // If no port is included, the default port for the service requested is implied (e.g., 443 for an HTTPS URL, and 80 for an HTTP URL).
+    if (requestHandle.port === undefined) {
+        let type = eventDetails.url.split(':')[0];
+        if (type.toLowerCase() === "https") {
+            requestHandle.destinationPort = "443";
+        }
+        else if (type.toLowerCase() === "http") {
+            requestHandle.destinationPort = "80";
+        }
+        else {
+            requestHandle.destinationPort = undefined;
+        }
+    }
+
+
+    // Get event datails?
+    if (optionsExtendedWith === "All" || optionsExtendedWith.includes("BeforeSendHeaders")) {
+        extendedData = { source: "BeforeSendHeaders", eventDetails: eventDetails };
+        requestHandle.extendedData.push(extendedData);
+    }
+}
+
+/* onSendHeaders
+   This event is fired just before sending headers.
+   If your extension or some other extension modified headers in onBeforeSendHeaders,
+   you'll see the modified version here. */
+function logOnSendHeaders(eventDetails) {
+    if (DEBUG === "ON") {
+        console.log("Entrace to logOnSendHeaders");
+        console.log(eventDetails);
+    }
+
+    requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
+    if (requestHandle === undefined) {
+        // Should be an error
+        // Even redirects get a new request id. 
+        console.error("Request not found after creating request");
+        console.log(eventDetails);
+    }
+
+    // Get event datails?
+    if (optionsExtendedWith === "All" || optionsExtendedWith.includes("SendHeaders")) {
+        extendedData = { source: "SendHeaders", eventDetails: eventDetails };
+        requestHandle.extendedData.push(extendedData);
+    }
 }
 
 /* onHeadersReceived
@@ -168,6 +201,7 @@ function logOnHeadersReceived(eventDetails) {
     if (DEBUG === "ON") {
         console.log("Entrace to logOnHeadersReceived");
         console.log(eventDetails);
+        console.log(requests);
     }
 
     // Add destinationIp to the request 
@@ -185,7 +219,30 @@ function logOnHeadersReceived(eventDetails) {
             }
         }
 
-        requestHandle.destinationIp = eventDetails.ip;
+        // Check if it got response from cache
+        if (eventDetails.ip === null) {
+            const requestHandleBkp = requests.find(({ url }) => url === eventDetails.url);
+            if (requestHandleBkp === undefined) {
+                console.error("The request ip is null and cannot be retrieved from backup : rqst : " + eventDetails.url);
+            }
+            else {
+                requestHandle.destinationIp = requestHandleBkp.destinationIp;
+
+                // Mark to remove the original and let the new one be referenced
+                requestHandleBkp.statusCode = "Remove";
+            }
+        }
+        else {
+            requestHandle.destinationIp = eventDetails.ip;
+        }
+    }
+
+
+
+    // Get event datails?
+    if (optionsExtendedWith === "All" || optionsExtendedWith.includes("HeadersReceived")) {
+        extendedData = { source: "HeadersReceived", eventDetails: eventDetails };
+        requestHandle.extendedData.push(extendedData);
     }
 }
 
@@ -198,15 +255,44 @@ function logOnBeforeRedirect(eventDetails) {
     }
 
     // Create a redirection entry
-    if (redirectNeeded === undefined) {
-        redirectNeeded = [];
+    const requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
+
+    if (requestHandle === undefined) {
+        // why are we here without a request for this requestId?
+        console.error("No request struct for id: " + eventDetails.requestId + " in logOnBeforeRedirect!!!");
+    }
+    else {
+        requestHandle.requestStatus = "Redirected";
     }
 
-    const redirectRequest = {
-        tabId: eventDetails.tabId,
-        origRequestId: eventDetails.requestId
+    // Get event datails?
+    if (optionsExtendedWith === "All" || optionsExtendedWith.includes("BeforeRedirect")) {
+        extendedData = { source: "BeforeRedirect", eventDetails: eventDetails };
+        requestHandle.extendedData.push(extendedData);
     }
-    redirectNeeded.push(redirectRequest);
+}
+
+/* onResponseStarted
+   Fired when the first byte of the response body is received. */
+function logOnResponseStarted(eventDetails) {
+    if (DEBUG === "ON") {
+        console.log("Entrace to logOnResponseStarted");
+        console.log(eventDetails);
+        console.log(requests);
+    }
+
+    requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
+    if (requestHandle === undefined) {
+        // Should be an error
+        // Even redirects get a new request id. 
+        console.error("No request struct for id: " + eventDetails.requestId + " in logOnResponseStarted!!!");
+    }
+
+    // Get event datails?
+    if (optionsExtendedWith === "All" || optionsExtendedWith.includes("ResponseStarted")) {
+        extendedData = { source: "ResponseStarted", eventDetails: eventDetails };
+        requestHandle.extendedData.push(extendedData);
+    }
 }
 
 /* onCompleted
@@ -215,6 +301,7 @@ async function logOnCompleted(eventDetails) {
     if (DEBUG === "ON") {
         console.log("Entrace to logOnCompleted");
         console.log(eventDetails);
+        console.log(requests);
     }
 
     // Log onCompleted time
@@ -224,15 +311,14 @@ async function logOnCompleted(eventDetails) {
         console.error("No request for id: " + eventDetails.requestId + " in logOnCompleted!!!");
     }
     else {
-        requestHandle.epochTime = eventDetails.timeStamp;
+        requestHandle.completedTime = eventDetails.timeStamp;
         // The onCompleted ip might yet be different here
         requestHandle.completedIp = eventDetails.ip;
         requestHandle.requestStatus = eventDetails.statusCode;
     }
 
     // Call pop up
-
-    if (eventDetails.method.toLowerCase() === "get") {
+    if (eventDetails.method.toLowerCase() === "get" && eventDetails.type.toLowerCase() === "main_frame") {
         console.log(requestHandle);
         try {
             browser.windows.create({
@@ -240,11 +326,77 @@ async function logOnCompleted(eventDetails) {
                 top: 0, left: 0, width: 400, height: 300,
                 titlePreface: "%" + requestHandle.id + "%"
             });
-        } catch (err) {
+        }
+        catch (err) {
             console.log("Creating popup failed");
             console.error(err);
         }
+
+        // Lets look for any straggler requests
+        // We do this here because this is less likely to happen so we don't do it often and slow everything else down
+        for (let rqst of requests) {
+            if (rqst.method.toLowerCase() != "get" || rqst.type.toLowerCase() != "main_frame" || rqst.statusCode === "Remove") {
+                result = requests.findIndex(({ id }) => id === rqst.id);
+                if (result === -1) {
+                    // why are we here without a request for this requestId?
+                    console.error("No request for id: " + rqst.id + " in logOnCompleted!!!");
+                }
+                while (result != -1) {
+                    requests.splice(result, 1);
+                    result = requests.findIndex(({ id }) => id === rqst.id);
+                }
+            }
+        }
     }
+
+    // Get event details?
+    if (optionsExtendedWith === "All" || optionsExtendedWith.includes("Completed")) {
+        extendedData = { source: "Completed", eventDetails: eventDetails };
+        requestHandle.extendedData.push(extendedData);
+    }
+
+    // destroy request for anything not "GET" and "main_frame"
+    if (requestHandle.method.toLowerCase() != "get" || requestHandle.type.toLowerCase() != "main_frame") {
+        result = requests.findIndex(({ id }) => id === eventDetails.requestId);
+        if (result === -1) {
+            // why are we here without a request for this requestId?
+            console.error("No request for id: " + eventDetails.requestId + " in onCompleted!!!");
+        }
+        while (result != -1) {
+            requests.splice(result, 1);
+            result = requests.findIndex(({ id }) => id === eventDetails.requestId);
+        }
+    }
+    else {
+        // destroy duplicate requests. LILO
+        duplicate = requests.find(({ url }) => url === requestHandle.url);
+        if (duplicate === undefined) {
+            // This is bad because it should at least find itself in here.
+            console.error("GET Main_Frame request url : " + requestHandle.url + " does not exist in delete dupes in onCompleted!")
+        }
+
+        while (duplicate != undefined) {
+            if (duplicate.completedTime != requestHandle.completedTime) {
+                // Delete dupe
+                dupeIndex = requests.findIndex(({ id }) => id === duplicate.id);
+                requests.splice(dupeIndex, 1);
+                duplicate = requests.find(({ url }) => url === requestHandle.url);
+            }
+            else {
+                // Itself. Break while
+                break;
+            }
+        }
+    }
+}
+
+/* callNative
+ * This function is called when the user makes a selection or when new request need to be saved
+ * the selection along with netstat data is ready to be sent to database */
+
+function handleStartup() {
+    // This function is not called when we manually load
+    // Moving all of the code that would be in handleStartup to logCreateTab
 }
 
 /* Tab
@@ -257,12 +409,12 @@ function logCreatedTab(createdTab) {
         console.log(createdTab);
     }
 
-    // Call native function to prepare things for this tab
-    tabInfo = { tabId: createdTab.id };
-    state = "create_tab";
+    // Check if output file exists if not create it
+    // Get the options
+    state = "session_start";
     message = {
         state: state,
-        dataIn: tabInfo,
+        dataIn: [],
         dataOut: [],
         exitMessage: ""
     };
@@ -270,47 +422,17 @@ function logCreatedTab(createdTab) {
     callNative();
 }
 
-function handleRemoved(removedId, removeInfo) {
-    console.log("removing tabId = " + removedId)
-    // close and delete file
-    tabInfo = { tabId: removedId };
-    state = "delete_tab";
-    message = {
-        state: state,
-        dataIn: tabInfo,
-        dataOut: [],
-        exitMessage: ""
-    };
-
-    // destroy request
-    result = requests.findIndex(({ tabId }) => tabId === removedId);
-    if (result === -1) {
-        // why are we here without a request for this requestId?
-        console.error("No request for tabId: " + removedId + " in handleRemoved!!!");
-    }
-
-    while (result != -1) {
-        requests.splice(result, 1);
-        result = requests.findIndex(({ tabId }) => tabId === removedId);
-    }
-    callNative();
-
-    console.log(removeInfo);
-}
-
-/* callNative
- * This function is called when the user makes a selection or when new request need to be saved
- * the selection along with netstat data is ready to be sent to database */
 function callNative() {
+    //  if (DEBUG === "ON") {
     console.log("In callNative");
-
-    // dataIn is the input to the native program
-    console.log("message is :")
+    console.log("message is : " + JSON.stringify(message));
     console.log(message);
+    //  }
     // Send the message to send all data to database
     var sending = browser.runtime.sendNativeMessage(
         "Transport",
         message);
+
     sending.then(onResponse, onError);
 }
 
@@ -318,6 +440,60 @@ function onResponse(response) {
     if (DEBUG === "ON") {
         console.log("In onResponse");
         console.log(response);
+    }
+    else {
+        console.log("In onResponse");
+        console.log(response);
+    }
+
+    if (response.state === "session_start") {
+        // Default to 
+        optionsSendWith = "Python"
+        optionsExtendedWith = "";
+        popupOptionsList = [];
+
+        // Get set options
+        for (var i = 0; i < response.dataOut.length; i++) {
+            if (response.dataOut[i][0] === "-s") {
+                console.log("option " + response.dataOut[i][0] + " with : " + response.dataOut[i][1]);
+                optionsSendWith = "Extension";
+                CREATEAPIADDRESS = response.dataOut[i][1];
+            }
+            if (response.dataOut[i][0] === "-E") {
+                console.log("option " + response.dataOut[i][0] + " with : " + response.dataOut[i][1]);
+                optionsExtendedWith = response.dataOut[i][1];
+            }
+            if (response.dataOut[i][0] === "popupOption") {
+                console.log("option " + response.dataOut[i][0] + " with : " + response.dataOut[i][1]);
+                popupOptionsList.push(response.dataOut[i][1]);
+            }
+            if (response.dataOut[i][0] === "FirefoxPID") {
+                console.log("option " + response.dataOut[i][0] + " with : " + response.dataOut[i][1]);
+                FirefoxPID = response.dataOut[i][1];
+            }
+        }
+    }
+
+    if (response.state === "add_connection") {
+        console.log("options sendwith is " + optionsSendWith);
+        if (response.dataOut.connections.length > 0) {
+            for (let connection of response.dataOut.connections) {
+                if (optionsSendWith === "Extension") {
+                    var request = new XMLHttpRequest();
+                    request.open("POST", CREATEAPIADDRESS);
+                    request.setRequestHeader("Content-Type", "application/json");
+                    request.overrideMimeType("text/plain");
+                    request.onload = function () {
+                        console.log("Response received: " + request.responseText);
+                    };
+                    console.log("connection :" + JSON.stringify(connection));
+                    request.send(JSON.stringify(connection));
+                }
+                else {
+                    console.log("connection :" + JSON.stringify(connection));
+                }
+            }
+        }
     }
 }
 
@@ -340,6 +516,14 @@ browser.runtime.onMessage.addListener((msg) => {
         return Promise.resolve(hdrs);
     }
 
+    /* get_options  */
+    if (msg.type === "get_options") {
+        popupOptions = popupOptionsList;
+        console.log("in get_options background");
+        console.log(popupOptions);
+        return Promise.resolve(popupOptions);
+    }
+
     // set_user_selection
     if (msg.type === "set_user_selection") {
         state = "add_connection"
@@ -355,11 +539,14 @@ browser.runtime.onMessage.addListener((msg) => {
                 dataIn: [{
                     tabId: requestHandle.tabId,
                     destinationIp: requestHandle.destinationIp,
+                    destinationPort: requestHandle.destinationPort,
                     userSelection: requestHandle.userSelection,
-                    epochTime: requestHandle.epochTime,
+                    epochTime: requestHandle.completedTime,
                     completedIp: requestHandle.completedIp,
-                    requestId: requestHandle.requestId,
-                    originalDestIp: requestHandle.originalDestIp
+                    requestId: requestHandle.id,
+                    originalDestIp: requestHandle.originalDestIp,
+                    extendedData: requestHandle.extendedData,
+                    FirefoxPID: FirefoxPID
                 }],
                 dataOut: [],
                 optionsSendWith: optionsSendWith,
@@ -380,16 +567,34 @@ browser.webRequest.onBeforeRequest.addListener(
     { urls: [targetPage] },
     ["requestBody"]
 );
+// onBeforeSendHeaders Listener
+browser.webRequest.onBeforeSendHeaders.addListener(
+    logOnBeforeSendHeaders,
+    { urls: [targetPage] },
+    ["blocking", "requestHeaders"]
+);
+//  onSendHeaders Listener
+browser.webRequest.onSendHeaders.addListener(
+    logOnSendHeaders,
+    { urls: [targetPage] },
+    ["requestHeaders"]
+);
 // onHeadersReceived
 browser.webRequest.onHeadersReceived.addListener(
     logOnHeadersReceived,
     { urls: [targetPage] },
     ["blocking", "responseHeaders"]
 );
+// onResponseStarted
+browser.webRequest.onResponseStarted.addListener(
+    logOnResponseStarted,
+    { urls: [targetPage] },
+    ["responseHeaders"]
+);
 // OnCompleted Listener
 browser.webRequest.onCompleted.addListener(
     logOnCompleted,
-    { urls: ["<all_urls>"], types: ["main_frame"] },
+    { urls: [targetPage] },
     ["responseHeaders"]);
 // OnBeforeRedirect
 browser.webRequest.onBeforeRedirect.addListener(
@@ -397,11 +602,12 @@ browser.webRequest.onBeforeRedirect.addListener(
     { urls: [targetPage] }
 );
 
+// onStartup
+// Get the global options
+browser.runtime.onStartup.addListener(handleStartup);
+
 // Tab Created Listener
 browser.tabs.onCreated.addListener(logCreatedTab);
-
-// Tab Removed Listener
-browser.tabs.onRemoved.addListener(handleRemoved);
 
 /*****************************************************************
  * Helper Functions

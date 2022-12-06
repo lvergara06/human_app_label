@@ -34,6 +34,7 @@ import os.path
 from os import path
 from time import sleep
 import requests
+import getopt
 
 try:
     # Python 3.x version
@@ -59,44 +60,66 @@ try:
         sys.stdout.buffer.write(encodedMessage['content'])
         sys.stdout.buffer.flush()
         
-    # Send http post request to database api
-    def sendToApi(bodyToSend):
-        # with open('./connections/' + tabFile + 'sendInfo', 'r+') as f:
-            # sys.stdout = f
-        #Url to api
-        url = "https://user_to_network_API2022.azurewebsites.net/api/Connection/Create"
-        headers = {'Content-Type': 'application/json'}
-
-        #Making http post request
-        json_object = json.dumps(bodyToSend, indent=4)
-        response = requests.post(url, headers=headers, data=json_object, verify=False)
+    def getOptions (options):
+        errorMsg = ""
+        if len(sys.argv) < 2:
+            # All defaults
+            options.append(('popupOption' , 'News'))
+            options.append(('popupOption' , 'Streaming'))
+            options.append(('popupOption' , 'Social Media'))
+            options.append(('popupOption' , 'Rather not say'))
+            options.append(('jsonFile' , './connections.json'))
+            options.append(('csvFile' , './connections.csv'))
+            return
+            
+        # Parse the arguments
+        # -s : Send with - Default is to have the native app send the connections to the api via http post. Use -s if you want the browser to send it
+        # -E : Extended information - Default is to only get the minimum amount of data from the extension. If you want all the request headers and response use -E 'All'
+        #-l for options
+        argv = sys.argv[1:]
+        opts, args = getopt.getopt(argv, 's:E:o:j:c:-j:-c:')
+        for o , a in opts:
+            if o == "-o":
+                if path.exists(a) != True:
+                    errorMsg += "Error: Could not find options file: " + a + ". "
+                    # All defaults
+                    options.append(('popupOption' , 'News'))
+                    options.append(('popupOption' , 'Streaming'))
+                    options.append(('popupOption' , 'Social Media'))
+                    options.append(('popupOption' , 'Rather not say'))
+                else:
+                    with open(a, 'r') as f:
+                        data = f.readlines()
+                        for line in data:        
+                            options.append(('popupOption' , line.strip('\n')))
+            if o == "-j":
+                options.append(('jsonFile', a))
+            if o == "-c":
+                options.append(('csvFile', a))
+                    
+        if (any('jsonFile' in i for i in options)):
+            pass
+        else:
+            options.append(('jsonFile' , './connections.json'))
+            options.append(('csvFile' , './connections.csv'))
+        # list of options tuple (opt, value)
+        options.append(opts)
         
-    # createTab - Creates a file to store the connections for this tab
-    # Inputs :
-    # TabId
-    # TabIndex
-    def createTab(receivedMessage):
-        original_stdout = sys.stdout # Save a reference to the original standard output
-        with open('log', 'w') as f:
-            sys.stdout = f # Change the standard output to the file we created.
-            print(receivedMessage)
-        tabHandle = str(receivedMessage['dataIn']['tabId']);
-        tabFile = str(tabHandle) + "connections.txt";
+        return errorMsg
+            
+    #
+    # session_start - Creates a file to store the connections for this tab and get options
+    #
+    def session_start(receivedMessage):
         responseMessage = {}
         responseMessage['state'] = receivedMessage['state']
         responseMessage['dataIn'] = receivedMessage['dataIn']
         responseMessage['dataOut'] = []
         responseMessage['exitMessage'] = "Success"
         
-        #Check if directory exists
-        if path.exists("connections") != True or path.isdir("connections") != True :
-            try:
-                os.makedirs("connections")
-            except:
-                responseMessage['exitMessage'] = "Could not create connection directory"              
-                sendMessage(encodeMessage(responseMessage))
-                return
-                
+        # Get options
+        responseMessage['exitMessage'] = getOptions(responseMessage['dataOut']);    
+        
         #Get firefox main pid
         p = subprocess.Popen(["tasklist"], stdout=subprocess.PIPE)
         out = p.stdout.read()
@@ -107,103 +130,96 @@ try:
         for line in out_tasklist:
             if line.find("firefox.exe") >= 0:
                 mainPID=line
-                #print(line)
                 break
-        split = ' '.join(mainPID.split()).split(' ')
-        connectionEntry = {}
-        connectionEntry['id'] = tabHandle
-        connectionEntry['status'] = "created"
-        connectionEntry['pid'] = split[1]
-        connectionEntry['connections'] = []
-        with open('./connections/' + tabFile, 'w') as f:
-            sys.stdout = f # Change the standard output to the file we created.
-            # Clear file
-            f.truncate(0)
-            f.seek(0)
-            # Serializing json
-            json_object = json.dumps(connectionEntry, indent=4)
-            print(json_object)
-            sys.stdout = original_stdout
-        responseMessage['dataOut'] = connectionEntry
+        split = ' '.join(mainPID.split()).split(' ')        
+        # Add the firefox main pid to the response
+        responseMessage['dataOut'].append(("FirefoxPID", split[1]))
         sendMessage(encodeMessage(responseMessage))
         
-    # addConnection - Opens the tabs' file and adds the connections to it
-    # Inputs :
-    # TabId
-    # TabIndex
-    # destinationIp
-    # userSelection
-    # epochTime
+    #
+    # addConnection - Opens the connection files and adds the connections to it
+    # 
+
     def addConnection(receivedMessage):
         original_stdout = sys.stdout # Save a reference to the original standard output
-        tabHandle = str(receivedMessage['dataIn'][0]['tabId']);
-        tabFile = str(tabHandle) + "connections.txt";
         responseMessage = {}
         responseMessage['state'] = receivedMessage['state']
         responseMessage['dataIn'] = receivedMessage['dataIn']
         responseMessage['dataOut'] = []
         responseMessage['exitMessage'] = "Success"
+        jsonFile = ""
+        csvFile = ""
+        extendData = False
         
+        # Get options
+        responseMessage['exitMessage'] = getOptions(responseMessage['dataOut']); 
+        for o in responseMessage['dataOut']:
+            if o[0] == "jsonFile":
+                jsonFile = o[1]
+            if o[0] == "csvFile":
+                csvFile = o[1]
+            if o[0] == "-E":
+                extendData=True
+
         #Run netstat 
-        #sys.stdout = f # Change the standard output to the file we created.
         arguments = "-onf" 
         p = subprocess.Popen(["netstat", arguments], stdout=subprocess.PIPE)
         out = p.stdout.read()
         decodedNetstat = out.decode('ascii')
         out_netstat = decodedNetstat.split('\r\n')  
-
-
-        #There is a chance that the file hasn't opened. Give it a chance.
-        if path.exists('./connections/' + tabFile) != True:
-            #Sleep 50 miliseconds
-            sleep(0.05)
-        #Check again
-        if path.exists('./connections/' + tabFile) != True:
-            #Sleep 500 miliseconds
-            sleep(0.5)
-        if path.exists('./connections/' + tabFile) != True:
-            responseMessage['exitMessage'] = "Could not find connection file: " + tabFile
-            sendMessage(encodeMessage(responseMessage))
-                        
-        # connectionEntry = {}
-        # connectionEntry['id'] = tabHandle
-        # connectionEntry['status'] = ""
-        # connectionEntry['pid'] = ""
-        # connectionEntry['connections'] = []
         
-        with open('./connections/' + tabFile, 'r+') as f:
-            sys.stdout = f
-            data = f.read()
-            connectionEntry = json.loads(data)
-            # Erase contents of the file to allow new connections
-            f.truncate(0)
-            f.seek(0)
-        
-            #Remove previous connections
-            connectionEntry['connections'].clear()
+        answ = os.path.exists(jsonFile)
+        answ2 = os.path.exists(csvFile)
+        connectionEntry = {}
+        connectionEntry['connections'] = []
+        with open(jsonFile, 'a' if answ else 'w') as jsonF, \
+             open(csvFile , 'a' if answ2 else 'w') as csvF:
+            sys.stdout = jsonF
             # Look for the connections per destinationIp and firefox pid
             for line in out_netstat:
-                split = ' '.join(line.split()).split(' ')
-                if len(split) == 5:
-                    if receivedMessage['dataIn'] and split[2].split(':')[0] == receivedMessage['dataIn'][0]['destinationIp'] and split[4] == connectionEntry['pid']:
+                netstatLineSplit = ' '.join(line.split()).split(' ')
+                if len(netstatLineSplit) == 5:  # Picks out the blanks
+                    netstatLineDestinationIP = netstatLineSplit[2].split(':')[0] 
+                    netstatLineDestinationPort = netstatLineSplit[2].split(':')[1]
+                    netstatLinePID = netstatLineSplit[4]
+                    if (len(receivedMessage['dataIn'][0]) > 0 and 
+                        netstatLineDestinationIP == receivedMessage['dataIn'][0]['destinationIp'] and 
+                        netstatLineDestinationPort == receivedMessage['dataIn'][0]['destinationPort'] and 
+                        netstatLinePID == responseMessage['dataIn'][0]['FirefoxPID']):
+                        
                         connection = {}
-                        connection['protocol'] = split[0]
-                        connection['sourceIp'] = split[1].split(':')[0]
-                        connection['sourcePort'] = split[1].split(':')[1]
-                        connection['destinationIp'] = split[2].split(':')[0]
-                        connection['destinationPort'] = split[2].split(':')[1]
-                        connection['status'] = split[3]
-                        connection['pid'] = split[4]
+                        connection['protocol'] = netstatLineSplit[0]
+                        connection['sourceIp'] = netstatLineSplit[1].split(':')[0]
+                        connection['sourcePort'] = netstatLineSplit[1].split(':')[1]
+                        connection['destinationIp'] = netstatLineSplit[2].split(':')[0]
+                        connection['destinationPort'] = netstatLineSplit[2].split(':')[1]
+                        connection['status'] = netstatLineSplit[3]
+                        connection['pid'] = netstatLineSplit[4]
                         connection['userSelection'] = receivedMessage['dataIn'][0]['userSelection']
                         connection['epochTime'] = receivedMessage['dataIn'][0]['epochTime']
-                        if receivedMessage['optionsSendWith'] == 'Python':
-                            sendToApi(connection)
+                        if extendData:
+                            connection['extendedData'] = receivedMessage['dataIn'][0]['extendedData']
+                        else:
+                            connection['extendedData'] = []
                         connectionEntry['connections'].append(connection)
-            connectionEntry['status'] = "updated"
-            json_object = json.dumps(connectionEntry, indent=4)
-            print(json_object)
+                        json_object = json.dumps(connection, indent=4)
+                        # to json
+                        print(json_object)
+                        sys.stdout = csvF
+                        # to csv
+                        print(connection['protocol'] + "," +
+                              connection['sourceIp'] + "," +
+                              connection['sourcePort'] + "," +
+                              connection['destinationIp'] + "," +
+                              connection['destinationPort'] + "," +
+                              connection['status'] + "," +
+                              connection['pid'] + "," +
+                              connection['userSelection'] + "," +
+                              str(connection['epochTime']))
+                        sys.stdout = jsonF
             sys.stdout = original_stdout # Reset the standard output to its original value
-            responseMessage['dataOut'] = connectionEntry;
+        responseMessage['dataOut'] = connectionEntry
+        responseMessage['exitMessage'] = 'Success'         
         sendMessage(encodeMessage(responseMessage))
 
     # deleteTab - Delets the file for this tab
@@ -230,9 +246,9 @@ try:
         receivedMessage = getMessage()
 
         #### Run the program based on received state
-        if receivedMessage['state'] == "create_tab":
+        if receivedMessage['state'] == "session_start":
             #### Call create tab
-            createTab(receivedMessage);
+            session_start(receivedMessage);
         elif receivedMessage['state'] == "add_connection":
             addConnection(receivedMessage);
         elif receivedMessage['state'] == "delete_tab":

@@ -1,5 +1,3 @@
-/* global saveCollectedBlobs, uuidv4, preventWindowDragAndDrop */
-
 "use strict";
 
 class Popup {
@@ -10,19 +8,12 @@ class Popup {
             headers: [],
             lastMessage: undefined,
             firstRender: "true",
-            requestId: ""
+            receivedOptions: "false",
+            requestId: "",
+            options: []
         };
 
-        this.onClickNews = this.onClickNews.bind(this);
-        this.onClickStream = this.onClickStream.bind(this);
-        this.onClickSocial = this.onClickSocial.bind(this);
-        this.onClickNo = this.onClickNo.bind(this);
         this.returnAnswer = this.returnAnswer.bind(this);
-
-        this.containerEl.querySelector("button.answer-news").onclick = this.onClickNews;
-        this.containerEl.querySelector("button.answer-stream").onclick = this.onClickStream;
-        this.containerEl.querySelector("button.answer-social").onclick = this.onClickSocial;
-        this.containerEl.querySelector("button.answer-na").onclick = this.onClickNo;
 
     }
 
@@ -30,26 +21,6 @@ class Popup {
         // Merge the new state on top of the previous one and re-render everything.
         this.state = Object.assign(this.state, state);
         this.render();
-    }
-
-    onClickNews() {
-        this.returnAnswer("News")
-    }
-
-    onClickStream() {
-        this.returnAnswer("Stream")
-    }
-
-    onClickSocial() {
-        this.returnAnswer("Social")
-    }
-
-    onClickNo() {
-        setTimeout(() => {
-            this.setState({ lastMessage: { text: "no", type: "success" } });
-        }, 20);
-
-        return;
     }
 
     render() {
@@ -61,11 +32,11 @@ class Popup {
                 this.state.requestId = title.split('%')[1];
                 getHdrs();
             });
+
             this.state.firstRender = undefined;
         }
 
         // Render the website url on the prompt
-
         const lastMessageEl = this.containerEl.querySelector("h3#main-page");
         if (this.state.headers.length > 0) {
             for (const hdr of this.state.headers) {
@@ -73,7 +44,44 @@ class Popup {
                     lastMessageEl.textContent = hdr.value;
                 }
             }
-        } 
+        }
+
+        // Render the options
+        if (this.state.receivedOptions === "true") {
+            if (this.state.options.length > 0) {
+                for (const option of this.state.options) {
+                    if (option.toLowerCase() === "rather not say") {
+                        const optionElement = document.createElement("BUTTON");
+                        optionElement.innerHTML = option;
+                        optionElement.onclick = function () {
+                            getCurrentWindow().then((currentWindow) => {
+                                browser.windows.remove(currentWindow.id);
+                            });
+                        }
+                        this.containerEl.append(optionElement);
+                        this.containerEl.appendChild(document.createElement("br"));
+                    }
+                    else {
+                        const optionElement = document.createElement("BUTTON");
+                        optionElement.innerHTML = option;
+                        optionElement.onclick = function () {
+                            popup.returnAnswer(option);
+                        }
+                        this.containerEl.append(optionElement);
+                        this.containerEl.appendChild(document.createElement("br"));
+                    }
+                }
+            }
+            else {
+                //911 error. Close window.
+                console.error("no options found in render");
+
+                getCurrentWindow().then((currentWindow) => {
+                    browser.windows.remove(currentWindow.id);
+                });
+            }
+            this.state.receivedOptions = "false";
+        }
 
         // If selection has been made, close window. 
         if (this.state.lastMessage != undefined) {
@@ -100,7 +108,6 @@ class Popup {
 const popup = new Popup(document.getElementById('app'));
 popup.render();
 
-preventWindowDragAndDrop();
 
 //browser.runtime.onMessage.addListener(async (msg) => {
 //  if (msg.type === "new-collected-images") {
@@ -119,15 +126,10 @@ preventWindowDragAndDrop();
 // Get the headers for the requestId
 function getHdrs() {
     const sending = browser.runtime.sendMessage({
-            type: "get_hdrs",
-            requestId: popup.state.requestId
-        });
-        sending.then(updatehdrs, onError);
-}
-
-// Get current window
-function getCurrentWindow() {
-    return browser.windows.getCurrent();
+        type: "get_hdrs",
+        requestId: popup.state.requestId
+    });
+    sending.then(updatehdrs, onError);
 }
 
 // Update the headers when get_hdrs message gets a reply.
@@ -139,9 +141,15 @@ function updatehdrs(response) {
     popup.setState({ headers });
 }
 
-function onError(error) {
-    console.log(`Error: ${error}`);
-}
+// Update the options when get_options message gets a reply.
+browser.runtime.sendMessage({ type: "get_options" }).then(async response => {
+    let options = popup.state.options || [];
+    for (const option of response) {
+        options.push(option);
+    }
+    popup.state.receivedOptions = "true";
+    popup.setState({ options });
+});
 
 
 // On User selection get the requestId and send the response back
@@ -151,6 +159,7 @@ function setUserSelection(selection) {
     }
     else {
         try {
+            console.log("user selection is :" + selection);
             browser.runtime.sendMessage({
                 type: "set_user_selection",
                 response: selection,
@@ -164,3 +173,11 @@ function setUserSelection(selection) {
     return
 }
 
+// Get current window
+function getCurrentWindow() {
+    return browser.windows.getCurrent();
+}
+
+function onError(error) {
+    console.log(`Error: ${error}`);
+}
