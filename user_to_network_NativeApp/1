@@ -36,8 +36,8 @@ from time import sleep
 import requests
 import getopt
 
-linuxConfigFile = "/tmp/Transport.conf" ## This file has the line arguments for linux 
-                                     ## In windows you can add the line argument to Transport_win.bat
+linuxConfigFile = "./Transport.conf" ## This file has the line arguments for linux 
+                                     ##  In windows you can add the line argument to Transport_win.bat
 
 try:
     # Python 3.x version
@@ -66,7 +66,6 @@ try:
     def getOptions (responseMessage):
         errorMsg = ""
         argv = sys.argv[1:]
-        original_stdout = sys.stdout
         if len(sys.argv) < 2:
             if responseMessage['dataIn']['os'] == "win":
                 # All defaults
@@ -86,19 +85,21 @@ try:
                     responseMessage['dataOut'].append(('popupOption' , 'Rather not say'))
                     responseMessage['dataOut'].append(('jsonFile' , '/tmp/connections.json'))
                     responseMessage['dataOut'].append(('csvFile' , '/tmp/connections.csv'))    
-                    return "File : " + linuxConfigFile + " not found"
+                    return
                 else:
                     with open(linuxConfigFile, 'r') as f:
-                        argv = f.readline().split()
-
+                        data = f.readline()
+                        for line in data:
+                            argv = line
+                         
         # Parse the arguments
         # -s : Send with - Default is to have the native app send the connections to the api via http post. Use -s if you want the browser to send it
         # -E : Extended information - Default is to only get the minimum amount of data from the extension. If you want all the request headers and response use -E 'All'
         #-l for options
-        opts, args = getopt.getopt(argv, 's:E:l:j:c:')
+        opts, args = getopt.getopt(argv, 's:E:o:j:c:')
         for o , a in opts:
-            if o == "-l":
-                if path.exists(a.strip('"')) != True:
+            if o == "-o":
+                if path.exists(a) != True:
                     errorMsg += "Error: Could not find options file: " + a + ". "
                     # All defaults
                     responseMessage['dataOut'].append(('popupOption' , 'News'))
@@ -106,7 +107,7 @@ try:
                     responseMessage['dataOut'].append(('popupOption' , 'Social Media'))
                     responseMessage['dataOut'].append(('popupOption' , 'Rather not say'))
                 else:
-                    with open(a.strip('"'), 'r') as f:
+                    with open(a, 'r') as f:
                         data = f.readlines()
                         for line in data:        
                             responseMessage['dataOut'].append(('popupOption' , line.strip('\n')))
@@ -115,7 +116,7 @@ try:
             if o == "-c":
                 responseMessage['dataOut'].append(('csvFile', a))
                     
-        if (any('jsonFile' in i for i in responseMessage['dataOut'])):
+        if (any('jsonFile' in i for i in options)):
             pass
         else:
             responseMessage['dataOut'].append(('jsonFile' , './connections.json'))

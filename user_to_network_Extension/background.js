@@ -16,6 +16,7 @@ let DEBUG = "ON";
 let optionsSendWith = "Python"
 let optionsExtendedWith = "";
 let FirefoxPID = "";
+let os="";
 let popupOptionsList = [];
 let CREATEAPIADDRESS = undefined;
 let redirectNeeded = undefined;  // If the request needs a redirection
@@ -137,13 +138,22 @@ function logOnBeforeSendHeaders(eventDetails) {
         console.log(eventDetails);
     }
 
-    // Get HOST ip and port number
+    // Get HOST ip and port number, connection
     for (let hdr of eventDetails.requestHeaders) {
         if (hdr.name.toLowerCase() === "host") {
             requestHandle.host = hdr.value;
         }
         if (hdr.name.toLowerCase() === "port") {
             requestHandle.port = hdr.value;
+        }
+        if (hdr.name.toLowerCase() === "connection"){
+            hdr.value="Close";
+            if(hdr.value.toLowerCase() === "keep-alive") {
+                requestHandle.persistent = "true";
+            } 
+            else if (hdr.value.toLowerCase() === "close") {
+                requestHandle.persistent = "false";
+            } 
         }
     }
 
@@ -161,12 +171,42 @@ function logOnBeforeSendHeaders(eventDetails) {
         }
     }
 
+    // If the request connection is "stay-alive" we assume that the connection will create a single flow.
+    // If the request connection in turn is "close" we will assume that subsequent http requests will create unique flows.
+    if (requestHandle.persistent === undefined) {
+       // default to non persistent
+       requestHandle.persistent = "false"; 
+    }
+    
+    if (requestHandle.persistent === "true")
+    {
+        // If the request is persistent we won't do anything different
+    }
+    else
+    {
+        console.log("*****************");
+        console.log("NON-PERSISTENT request id : " + requestHandle.id);
+        console.log("*****************");
+        // If the request is non persistent then we should check if the user selection has been made
+        referenceRequestHandle = requests.find(({ host }) => host === requestHandle.host);
+        if (referenceRequestHandle === undefined) {
+            if(requestHandle.method.toLowerCase() != "get" || requestHandle.type.toLowerCase() != "main_frame") {
+                log.error("No reference for host: " + requestHandle.host + " , requestId : " + requestHandle.id);
+            }
+        }  
+        else {
+            requestHandle.userSelection = referenceRequestHandle.userSelection;
+        }
+    }
+
 
     // Get event datails?
     if (optionsExtendedWith === "All" || optionsExtendedWith.includes("BeforeSendHeaders")) {
         extendedData = { source: "BeforeSendHeaders", eventDetails: eventDetails };
         requestHandle.extendedData.push(extendedData);
     }
+
+    return {requestHeaders: eventDetails.requestHeaders};
 }
 
 /* onSendHeaders
@@ -186,6 +226,8 @@ function logOnSendHeaders(eventDetails) {
         console.error("Request not found after creating request");
         console.log(eventDetails);
     }
+    
+    requestHandle.timeStamp = eventDetails.timeStamp;
 
     // Get event datails?
     if (optionsExtendedWith === "All" || optionsExtendedWith.includes("SendHeaders")) {
@@ -317,9 +359,45 @@ async function logOnCompleted(eventDetails) {
         requestHandle.requestStatus = eventDetails.statusCode;
     }
 
+    // If the request is non persistant and user selection is not available yet. Save it until the user selection is available. 
+    if ( requestHandle.userSelection === undefined && requestHandle.persistent === "false") {
+        // skip the main requests
+        if( !( eventDetails.method.toLowerCase() === "get" && eventDetails.type.toLowerCase() === "main_frame" )) {
+            requestHandle.statusCode = "Unprocessed";
+        } 
+    }
+
+
+    // If this event has a userSelection on it already and it has a non persistent connection then call native app immediately
+    if ( requestHandle.userSelection != undefined && requestHandle.persistent === "false" &&
+         !(eventDetails.type.toLowerCase() === "main_frame" && eventDetails.method.toLowerCase() === "get"))
+    {
+            message = {
+                state: state,
+                dataIn: [{
+                    tabId: requestHandle.tabId,
+                    destinationIp: requestHandle.destinationIp,
+                    destinationPort: requestHandle.destinationPort,
+                    userSelection: requestHandle.userSelection,
+                    epochTime: requestHandle.timeStamp,
+                    completedIp: requestHandle.completedIp,
+                    requestId: requestHandle.id,
+                    originalDestIp: requestHandle.originalDestIp,
+                    extendedData: requestHandle.extendedData,
+                    FirefoxPID: FirefoxPID,
+                    os: os
+                }],
+                dataOut: [],
+                optionsSendWith: optionsSendWith,
+                exitMessage: ""
+            };
+            callNative();
+    
+    } 
+
     // Call pop up
     if (eventDetails.method.toLowerCase() === "get" && eventDetails.type.toLowerCase() === "main_frame") {
-        console.log(requestHandle);
+        //console.log(requestHandle);
         try {
             browser.windows.create({
                 type: "popup", url: "/popup.html",
@@ -356,7 +434,8 @@ async function logOnCompleted(eventDetails) {
     }
 
     // destroy request for anything not "GET" and "main_frame"
-    if (requestHandle.method.toLowerCase() != "get" || requestHandle.type.toLowerCase() != "main_frame") {
+    if ((requestHandle.method.toLowerCase() != "get" || requestHandle.type.toLowerCase() != "main_frame") && 
+        (requestHandle.statusCode === undefined || requestHandle.statusCode != "Unprocessed")) {
         result = requests.findIndex(({ id }) => id === eventDetails.requestId);
         if (result === -1) {
             // why are we here without a request for this requestId?
@@ -404,22 +483,32 @@ function handleStartup() {
    Send an init message to the app. */
 // Window
 function logCreatedTab(createdTab) {
-    if (DEBUG === "ON") {
-        console.log("Entrace to logCreatedTab");
-        console.log(createdTab);
-    }
+    // check operating system for native app
+    // we cannot make this synchronous so we are going to have to do everything inside
+    // this function because we need the os info before we can call native app.
+    browser.runtime.getPlatformInfo().then((info) => {
 
-    // Check if output file exists if not create it
-    // Get the options
-    state = "session_start";
-    message = {
-        state: state,
-        dataIn: [],
-        dataOut: [],
-        exitMessage: ""
-    };
+        os = info.os;
 
-    callNative();
+	if (DEBUG === "ON") {
+	    console.log("Entrace to logCreatedTab");
+	    console.log(os);
+	    console.log(createdTab);
+	}
+
+	// Check if output file exists if not create it
+	// Get the options
+	state = "session_start";
+	message = {
+	    state: state,
+	    dataIn: [{os: os}],
+	    dataOut: [],
+	    exitMessage: ""
+	};
+
+	callNative();
+    });
+
 }
 
 function callNative() {
@@ -519,8 +608,6 @@ browser.runtime.onMessage.addListener((msg) => {
     /* get_options  */
     if (msg.type === "get_options") {
         popupOptions = popupOptionsList;
-        console.log("in get_options background");
-        console.log(popupOptions);
         return Promise.resolve(popupOptions);
     }
 
@@ -541,58 +628,97 @@ browser.runtime.onMessage.addListener((msg) => {
                     destinationIp: requestHandle.destinationIp,
                     destinationPort: requestHandle.destinationPort,
                     userSelection: requestHandle.userSelection,
-                    epochTime: requestHandle.completedTime,
+                    epochTime: requestHandle.timeStamp,
                     completedIp: requestHandle.completedIp,
                     requestId: requestHandle.id,
                     originalDestIp: requestHandle.originalDestIp,
                     extendedData: requestHandle.extendedData,
-                    FirefoxPID: FirefoxPID
+                    FirefoxPID: FirefoxPID,
+                    os: os
                 }],
                 dataOut: [],
                 optionsSendWith: optionsSendWith,
                 exitMessage: ""
             };
             callNative();
-            return Promise.resolve(true);
+
+            // Process unprocessed connections
+            for (let rqst of requests) {
+                if ( rqst.statusCode === "Unprocessed" && rqst.host === requestHandle.host) {
+                     message = {
+                         state: state,
+                         dataIn: [{
+                             tabId: rqst.tabId,
+			     destinationIp: rqst.destinationIp,
+			     destinationPort: rqst.destinationPort,
+			     userSelection: msg.response,
+			     epochTime: rqst.timeStamp,
+			     completedIp: rqst.completedIp,
+			     requestId: rqst.id,
+			     originalDestIp: rqst.originalDestIp,
+			     extendedData: rqst.extendedData,
+			     FirefoxPID: FirefoxPID,
+			     os: os
+			}],
+			dataOut: [],
+			optionsSendWith: optionsSendWith,
+                        exitMessage: ""
+		     };
+                    callNative();
+
+		    // Delete processed rqst 
+		    result = requests.findIndex(({ id }) => id === rqst.id);
+		    if (result === -1) {
+			// why are we here without a request for this requestId?
+			console.error("No request for id: " + rqst.id + " in logOnCompleted!!!");
+		    }
+
+		    while (result != -1) {
+			requests.splice(result, 1);
+		        result = requests.findIndex(({ id }) => id === rqst.id);
+	            }
+		}
+            }
         }
+	return Promise.resolve(true);
     }
 });
 
-/*****************************************************************
- * Event Listeners
- ****************************************************************/
-// onBeforeRequest Listener
-browser.webRequest.onBeforeRequest.addListener(
-    logOnBeforeRequest,
-    { urls: [targetPage] },
-    ["requestBody"]
-);
-// onBeforeSendHeaders Listener
-browser.webRequest.onBeforeSendHeaders.addListener(
-    logOnBeforeSendHeaders,
-    { urls: [targetPage] },
-    ["blocking", "requestHeaders"]
-);
-//  onSendHeaders Listener
-browser.webRequest.onSendHeaders.addListener(
-    logOnSendHeaders,
-    { urls: [targetPage] },
-    ["requestHeaders"]
-);
-// onHeadersReceived
-browser.webRequest.onHeadersReceived.addListener(
-    logOnHeadersReceived,
-    { urls: [targetPage] },
-    ["blocking", "responseHeaders"]
-);
-// onResponseStarted
-browser.webRequest.onResponseStarted.addListener(
-    logOnResponseStarted,
-    { urls: [targetPage] },
-    ["responseHeaders"]
-);
-// OnCompleted Listener
-browser.webRequest.onCompleted.addListener(
+    /*****************************************************************
+     * Event Listeners
+     ****************************************************************/
+    // onBeforeRequest Listener
+    browser.webRequest.onBeforeRequest.addListener(
+	logOnBeforeRequest,
+	{ urls: [targetPage] },
+	["requestBody"]
+    );
+    // onBeforeSendHeaders Listener
+    browser.webRequest.onBeforeSendHeaders.addListener(
+	logOnBeforeSendHeaders,
+	{ urls: [targetPage] },
+	["blocking", "requestHeaders"]
+    );
+    //  onSendHeaders Listener
+    browser.webRequest.onSendHeaders.addListener(
+	logOnSendHeaders,
+	{ urls: [targetPage] },
+	["requestHeaders"]
+    );
+    // onHeadersReceived
+    browser.webRequest.onHeadersReceived.addListener(
+	logOnHeadersReceived,
+	{ urls: [targetPage] },
+	["blocking", "responseHeaders"]
+    );
+    // onResponseStarted
+    browser.webRequest.onResponseStarted.addListener(
+	logOnResponseStarted,
+	{ urls: [targetPage] },
+	["responseHeaders"]
+    );
+    // OnCompleted Listener
+    browser.webRequest.onCompleted.addListener(
     logOnCompleted,
     { urls: [targetPage] },
     ["responseHeaders"]);
