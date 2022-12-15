@@ -68,7 +68,7 @@ try:
         argv = sys.argv[1:]
         original_stdout = sys.stdout
         if len(sys.argv) < 2:
-            if responseMessage['dataIn']['os'] == "win":
+            if responseMessage['dataIn'][0]['os'] == "win":
                 # All defaults
                 responseMessage['dataOut'].append(('popupOption' , 'News'))
                 responseMessage['dataOut'].append(('popupOption' , 'Streaming'))
@@ -183,7 +183,7 @@ try:
         
         
         # Get options
-        responseMessage['exitMessage'] = getOptions(responseMessage['dataOut']); 
+        responseMessage['exitMessage'] = getOptions(responseMessage); 
         for o in responseMessage['dataOut']:
             if o[0] == "jsonFile":
                 jsonFile = o[1]
