@@ -311,9 +311,8 @@ async function logOnCompleted(eventDetails) {
                 // If the request is non persistent then we should check if the user selection has been made
                 // Check if it got response from cache
                 for (let referenceRequestHandle of requests.filter(({ host }) => host === requestHandle.host)) {
-                    if (referenceRequestHandle.id < requestHandle.id && referenceRequestHandle.tabId === requestHandle.tabId) {
+                    if (referenceRequestHandle.id != requestHandle.id && referenceRequestHandle.tabId === requestHandle.tabId) {
                         if (referenceRequestHandle.userSelection != undefined) {
-
                             requestHandle.userSelection = referenceRequestHandle.userSelection;
                             if (requestHandle.persistent != "true") {
                                 console.log("*****************");
@@ -327,7 +326,12 @@ async function logOnCompleted(eventDetails) {
                             break;
                         }
                         else if (referenceRequestHandle.userSelection === undefined) {
-                            requestHandle.statusCode = "Child";
+                            if (requestHandle.persistent != "true") {
+                                requestHandle.statusCode = "Child";
+                            }
+                            else {
+                                requestHandle.statusCode = "Remove";
+                            }
                         }
                     }
                 }
@@ -341,7 +345,7 @@ async function logOnCompleted(eventDetails) {
                 console.log("*****************");
 
                 for (let referenceRequestHandle of requests.filter(({ url }) => url === requestHandle.originUrl)) {
-                    if (referenceRequestHandle.id < requestHandle.id && referenceRequestHandle.tabId === requestHandle.tabId) {
+                    if (referenceRequestHandle.id != requestHandle.id && referenceRequestHandle.tabId === requestHandle.tabId) {
                         if (referenceRequestHandle.userSelection != undefined) {
                             requestHandle.userSelection = referenceRequestHandle.userSelection;
                             requestHandle.statusCode = "HostSentReady";
