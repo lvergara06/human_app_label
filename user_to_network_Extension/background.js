@@ -142,7 +142,7 @@ function logOnBeforeSendHeaders(eventDetails) {
             requestHandle.port = hdr.value;
         }
         if (hdr.name.toLowerCase() === "connection") {
-            hdr.value = "Close";  // TAKE ME OUT
+            //hdr.value = "Close";  // TAKE ME OUT
             if (hdr.value.toLowerCase() === "keep-alive") {
                 requestHandle.persistent = "true";
             }
@@ -176,7 +176,7 @@ function logOnBeforeSendHeaders(eventDetails) {
     // Get event datails?
     logEvent("BeforeSendHeaders", eventDetails, requestHandle);
 
-    return { requestHeaders: eventDetails.requestHeaders };  // TAKE ME OUT
+    //return { requestHeaders: eventDetails.requestHeaders };  // TAKE ME OUT
 }
 
 /* onSendHeaders
@@ -217,21 +217,14 @@ function logOnHeadersReceived(eventDetails) {
     else {
         // Check if it got response from cache
         if (eventDetails.ip === null) {
-            const requestHandleBkp = requests.find(({ url }) => url === eventDetails.url);
-            if (requestHandleBkp === undefined) {
-                console.error("Request from cache : " + eventDetails.url + " does not exist in backups");
-            }
-            else {
-                while (requestHandleBkp != undefined) {
-                    if (requestHandleBkp.id != requestHandle.id) {
-                        requestHandle.destinationIp = requestHandleBkp.destinationIp;
-                        // Mark to remove the original and let the new one be referenced
-                        requestHandleBkp.statusCode = "Remove";
-                    }
-                    else {
-                        // Itself. Break while
-                        break;
-                    }
+            for (let requestHandleBkp of requests.filter(({ url }) => url === eventDetails.url)) {
+                if (requestHandleBkp.id != requestHandle.id) {
+                    requestHandle.destinationIp = requestHandleBkp.destinationIp;
+                    // Mark to remove the original and let the new one be referenced
+                    requestHandleBkp.statusCode = "Remove";
+                }
+                else {
+                    continue;
                 }
             }
         }
@@ -313,47 +306,53 @@ async function logOnCompleted(eventDetails) {
 
         if (!(eventDetails.method.toLowerCase() === "get" && eventDetails.type.toLowerCase() === "main_frame")) {
             // If it is not persitent look for the get main_frame reference
-            if (requestHandle.persistent != "true" && requestHandle.userSelection === undefined) {
-                console.log("*****************");
-                console.log("NON-PERSISTENT request id : " + requestHandle.id);
-                console.log("*****************");
+            if (requestHandle.userSelection === undefined) {
 
                 // If the request is non persistent then we should check if the user selection has been made
-                referenceRequestHandle = requests.find(({ host }) => host === requestHandle.host);
-                if (referenceRequestHandle === undefined) {
-                    if (!(eventDetails.type.toLowerCase() === "main_frame" && eventDetails.method.toLowerCase() === "get")) {
-                        console.error("No reference for host: " + requestHandle.host + " , requestId : " + requestHandle.id);
-                    }
-                    requestHandle.statusCode = "Unprocessed";
-                }
-                else {
-                    if (referenceRequestHandle.userSelection != undefined) {
-                        requestHandle.userSelection = referenceRequestHandle.userSelection;
-                    }
-                    else {
-                        requestHandle.statusCode = "Unprocessed";
+                // Check if it got response from cache
+                for (let referenceRequestHandle of requests.filter(({ host }) => host === requestHandle.host)) {
+                    if (referenceRequestHandle.id < requestHandle.id && referenceRequestHandle.tabId === requestHandle.tabId) {
+                        if (referenceRequestHandle.userSelection != undefined) {
+
+                            requestHandle.userSelection = referenceRequestHandle.userSelection;
+                            if (requestHandle.persistent != "true") {
+                                console.log("*****************");
+                                console.log("NON-PERSISTENT request id : " + requestHandle.id);
+                                console.log("*****************");
+                                requestHandle.statusCode = "ChildSentReady";
+                            }
+                            else{
+                                requestHandle.statusCode = "Remove";
+                            }
+                            break;
+                        }
+                        else if (referenceRequestHandle.userSelection === undefined) {
+                            requestHandle.statusCode = "Child";
+                        }
                     }
                 }
             }
 
-            // If the request is a different host altogether
-            if (eventDetails.originUrl != null && requestHandle.userSelection === undefined && requestHandle.statusCode === "Waiting") {
-                // Check if we can find user selection from origin url
+            // Different hosts
+            if (requestHandle.userSelection === undefined && requestHandle.statusCode === "Waiting" && eventDetails.originUrl != null) {
                 requestHandle.originUrl = eventDetails.originUrl;
+                console.log("*****************");
+                console.log("Different host request id : " + requestHandle.id + ", host: " + requestHandle.host);
+                console.log("*****************");
 
-                referenceRequestHandle = requests.find(({ url }) => url === requestHandle.originUrl);
-                if (referenceRequestHandle === undefined) {
-                    console.error("No reference origin url: " + requestHandle.originUrl + ", requestId : " + requestHandle.id);
-                    requestHandle.statusCode = "Orphaned";
-                }
-                else {
-                    if (referenceRequestHandle.userSelection != undefined) {
-                        requestHandle.userSelection = referenceRequestHandle.userSelection;
+                for (let referenceRequestHandle of requests.filter(({ url }) => url === requestHandle.originUrl)) {
+                    if (referenceRequestHandle.id < requestHandle.id && referenceRequestHandle.tabId === requestHandle.tabId) {
+                        if (referenceRequestHandle.userSelection != undefined) {
+                            requestHandle.userSelection = referenceRequestHandle.userSelection;
+                            requestHandle.statusCode = "HostSentReady";
+                            break;
+                        }
+                        else if (referenceRequestHandle === undefined) {
+                            requestHandle.statusCode = "Orphaned";
+                        }
                     }
-                    else {
-                        requestHandle.statusCode = "Orphaned";
-                    }
                 }
+
             }
         }
         else if (eventDetails.method.toLowerCase() === "get" && eventDetails.type.toLowerCase() === "main_frame") {
@@ -371,22 +370,6 @@ async function logOnCompleted(eventDetails) {
                 console.error(err);
             }
 
-            // Lets look for any straggler requests
-            // We do this here because this is less likely to happen so we don't do it often and slow everything else down
-            for (let rqst of requests) {
-                if (rqst.statusCode === "Remove") {
-                    result = requests.findIndex(({ id }) => id === rqst.id);
-                    if (result === -1) {
-                        // why are we here without a request for this requestId?
-                        console.error("No request for id: " + rqst.id + " in logOnCompleted!!!");
-                    }
-                    while (result != -1) {
-                        console.log("delete id : " + rqst.id + " in onCompleted because it was marked remove!!!");
-                        requests.splice(result, 1);
-                        result = requests.findIndex(({ id }) => id === rqst.id);
-                    }
-                }
-            }
             // Check for dupe get main_frame
             // destroy duplicate requests. LILO
             duplicate = requests.find(({ url }) => url === requestHandle.url);
@@ -396,7 +379,7 @@ async function logOnCompleted(eventDetails) {
             }
 
             while (duplicate != undefined) {
-                if (duplicate.completedTime != requestHandle.completedTime) {
+                if (duplicate.id != requestHandle.id) {
                     // Delete dupe
                     console.log("deleted dupe: rqst id : " + duplicate.id);
                     dupeIndex = requests.findIndex(({ id }) => id === duplicate.id);
@@ -411,44 +394,40 @@ async function logOnCompleted(eventDetails) {
         }
     }
     // // check again
-    for (let rqst of requests) {
+    //for (let rqst of requests) {
 
-        if (rqst.statusCode === "Waiting") {
-            referenceRequestHandle = requests.find(({ host }) => host === rqst.host);
-            if (referenceRequestHandle === undefined) {
-                console.error("No reference for host: " + rqst.host + " , requestId : " + rqst.id);
-                rqst.statusCode = "Unprocessed";
-            }
-            else {
-                if (referenceRequestHandle.userSelection != undefined) {
-                    rqst.userSelection = referenceRequestHandle.userSelection;
-                    rqst.statusCode = "SentReady";
-                }
-                else {
-                    rqst.statusCode = "Unprocessed";
-                }
-            }
-        }
-        if (rqst.statusCode === "Waiting") {
-            referenceRequestHandle = requests.find(({ url }) => url === rqst.originUrl);
-            if (referenceRequestHandle === undefined) {
-                console.error("No reference origin url: " + rqst.originUrl + ", requestId : " + rqst.id);
-                rqst.statusCode = "Orphaned";
-            }
-            else {
-                if (referenceRequestHandle.userSelection != undefined) {
-                    rqst.userSelection = referenceRequestHandle.userSelection;
-                    rqst.statusCode = "SentReady";
-                }
-                else {
-                    rqst.statusCode = "Orphaned";
-                }
-            }
-        }
-    }
+    //    if (rqst.statusCode === "Waiting") {
+    //        referenceRequestHandle = requests.find(({ host }) => host === rqst.host);
+    //        if (referenceRequestHandle === undefined) {
+    //            referenceRequestHandle = requests.find(({ url }) => url === rqst.originUrl);
+    //            if (referenceRequestHandle === undefined) {
+    //                console.error("No reference origin url: " + rqst.originUrl + ", requestId : " + rqst.id);
+    //                rqst.statusCode = "Orphaned";
+    //            }
+    //            else {
+    //                if (referenceRequestHandle.userSelection != undefined) {
+    //                    rqst.userSelection = referenceRequestHandle.userSelection;
+    //                    rqst.statusCode = "SentReady";
+    //                }
+    //                else {
+    //                    rqst.statusCode = "Orphaned";
+    //                }
+    //            }
+    //        }
+    //        else {
+    //            if (referenceRequestHandle.userSelection != undefined) {
+    //                rqst.userSelection = referenceRequestHandle.userSelection;
+    //                rqst.statusCode = "SentReady";
+    //            }
+    //            else {
+    //                rqst.statusCode = "Unprocessed";
+    //            }
+    //        }
+    //    }
+    //}
 
     for (let rqst of requests) {
-        if (rqst.statusCode === "SentReady") {
+        if (rqst.statusCode === "ChildSentReady" || rqst.statusCode === "HostSentReady") {
             message = {
                 state: state,
                 dataIn: [{
@@ -470,7 +449,12 @@ async function logOnCompleted(eventDetails) {
             };
             callNative(message);
 
-            rqst.statusCode = "Remove";
+            if (rqst.statusCode === "ChildSentReady") {
+                rqst.statusCode = "Remove";
+            }
+            else {
+                rqst.statusCode = "ExternalHost"
+            }
         }
     }
     // Clean up
@@ -543,6 +527,7 @@ function onResponse(response) {
     if (DEBUG === "ON") {
         console.log("In onResponse");
         console.log(response);
+        console.log(requests);
     }
     else {
         console.log("In onResponse");
@@ -658,12 +643,8 @@ browser.runtime.onMessage.addListener((msg) => {
             callNative(message);
 
             // All other unprocessed requests
-            console.log("about to process unprocessed");
-            for( let rqst of requests) {
-                console.log("in for each");
-                console.log(rqst);
-                console.log(requests);
-                if (rqst.statusCode === "Unprocessed" && rqst.host === requestHandle.host && rqst.tabId === requestHandle.tabId) {
+            for (let rqst of requests) {
+                if (rqst.statusCode === "Child" && rqst.host === requestHandle.host && rqst.tabId === requestHandle.tabId) {
                     rqst.userSelection = msg.response;
                     message = {
                         state: state,
@@ -716,13 +697,7 @@ browser.runtime.onMessage.addListener((msg) => {
                     };
                     callNative(message);
 
-                    rqst.statusCode = "Remove";
-                }
-            }
-            // Clean up
-            for (let rqst of requests) {
-                if (rqst.statusCode === "Remove") {
-                    deleteRequest(rqst.id);
+                    rqst.statusCode = "ExternalHost";
                 }
             }
         }
