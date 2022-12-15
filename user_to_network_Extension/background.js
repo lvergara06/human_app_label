@@ -20,7 +20,7 @@ let os = "";
 let popupOptionsList = [];
 let CREATEAPIADDRESS = undefined;
 let redirectNeeded = undefined;  // If the request needs a redirection
-let message = [];                // Message to be passed to native application {state "" , dataIn [] , dataOut [] , errorMessage ""}
+//let message = [];                // Message to be passed to native application {state "" , dataIn [] , dataOut [] , errorMessage ""}
 let requests = [];               // Requests made so far
 // {
 // id: "", request id from request headers
@@ -468,7 +468,7 @@ async function logOnCompleted(eventDetails) {
                 optionsSendWith: optionsSendWith,
                 exitMessage: ""
             };
-            callNative();
+            callNative(message);
 
             rqst.statusCode = "Remove";
         }
@@ -520,12 +520,12 @@ function logCreatedTab(createdTab) {
             exitMessage: ""
         };
 
-        callNative();
+        callNative(message);
     });
 
 }
 
-function callNative() {
+function callNative(message) {
     //  if (DEBUG === "ON") {
     console.log("In callNative");
     console.log("message is : " + JSON.stringify(message));
@@ -655,7 +655,7 @@ browser.runtime.onMessage.addListener((msg) => {
                 optionsSendWith: optionsSendWith,
                 exitMessage: ""
             };
-            callNative();
+            callNative(message);
 
             // All other unprocessed requests
             console.log("about to process unprocessed");
@@ -684,7 +684,7 @@ browser.runtime.onMessage.addListener((msg) => {
                         optionsSendWith: optionsSendWith,
                         exitMessage: ""
                     };
-                    callNative();
+                    callNative(message);
 
                     rqst.statusCode = "Remove";
                 }
@@ -714,7 +714,7 @@ browser.runtime.onMessage.addListener((msg) => {
                         optionsSendWith: optionsSendWith,
                         exitMessage: ""
                     };
-                    callNative();
+                    callNative(message);
 
                     rqst.statusCode = "Remove";
                 }
