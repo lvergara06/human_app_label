@@ -16,7 +16,7 @@ let DEBUG = "ON";
 let optionsSendWith = "Python"
 let optionsExtendedWith = "";
 let FirefoxPID = "";
-let os="";
+let os = "";
 let popupOptionsList = [];
 let CREATEAPIADDRESS = undefined;
 let redirectNeeded = undefined;  // If the request needs a redirection
@@ -50,11 +50,8 @@ let requests = [];               // Requests made so far
    This is a good place to listen if you want to cancel or redirect the request. */
 // This function opens a dialog box, if yes is selected then headers are logged
 function logOnBeforeRequest(eventDetails) {
-    if (DEBUG === "ON") {
-        console.log("Entrace to logOnBeforeRequest");
-        console.log(eventDetails);
-        console.log(requests);
-    }
+
+    trace("logOnBeforeRequest", eventDetails);
 
     // Create an entry for this request
     // Check if there is an entry for this requestId
@@ -74,7 +71,11 @@ function logOnBeforeRequest(eventDetails) {
             globalHdrs: [],
             completedIp: "",
             requestStatus: "",
-            extendedData: []
+            extendedData: [],
+            statusCode: "New",
+            originalUrl: undefined,
+            userSelection: undefined,
+            originUrl: undefined
         };
         requests.push(newRequest);
 
@@ -99,36 +100,30 @@ function logOnBeforeRequest(eventDetails) {
     }
 
     // Save headers to send to popup
-    try {
-        const urlHdr = requestHandle.globalHdrs.find(({ name }) => name === "url");
-        if (urlHdr === undefined) {
-            requestHandle.globalHdrs.push({ name: "url", value: eventDetails.url });
+    if (eventDetails.type.toLowerCase() === "main_frame" && eventDetails.method.toLowerCase() === "get") {
+
+        try {
+            const urlHdr = requestHandle.globalHdrs.find(({ name }) => name === "url");
+            if (urlHdr === undefined) {
+                requestHandle.globalHdrs.push({ name: "url", value: eventDetails.url });
+            }
+            else {
+                urlHdr.value = eventDetails.url;
+            }
+        } catch (err) {
+            console.log("passing headers failed");
+            console.error(err);
         }
-        else {
-            urlHdr.value = eventDetails.url;
-        }
-    } catch (err) {
-        console.log("passing headers failed");
-        console.error(err);
     }
 
-    // Get event datails?
-    if (optionsExtendedWith === "All" || optionsExtendedWith.includes("BeforeRequest")) {
-        extendedData = { source: "BeforeRequest", eventDetails: eventDetails };
-        requestHandle.extendedData.push(extendedData);
-    }
-
+    logEvent("BeforeRequest", eventDetails, requestHandle);
 }
 
 /* onBeforeSendHeaders Handler
    This event is triggered before sending any HTTP data, but after all HTTP headers are available.
    This is a good place to listen if you want to modify HTTP request headers. */
 function logOnBeforeSendHeaders(eventDetails) {
-    if (DEBUG === "ON") {
-        console.log("Entrace to logOnBeforeSendHeaders");
-        console.log(eventDetails);
-        console.log(requests);
-    }
+    trace("logOnBeforeSendHeaders", eventDetails);
 
     requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
     if (requestHandle === undefined) {
@@ -138,7 +133,7 @@ function logOnBeforeSendHeaders(eventDetails) {
         console.log(eventDetails);
     }
 
-    // Get HOST ip and port number, connection
+    // Get HOST ip ,port number, connection
     for (let hdr of eventDetails.requestHeaders) {
         if (hdr.name.toLowerCase() === "host") {
             requestHandle.host = hdr.value;
@@ -146,14 +141,14 @@ function logOnBeforeSendHeaders(eventDetails) {
         if (hdr.name.toLowerCase() === "port") {
             requestHandle.port = hdr.value;
         }
-        if (hdr.name.toLowerCase() === "connection"){
-            hdr.value="Close";
-            if(hdr.value.toLowerCase() === "keep-alive") {
+        if (hdr.name.toLowerCase() === "connection") {
+            hdr.value = "Close";  // TAKE ME OUT
+            if (hdr.value.toLowerCase() === "keep-alive") {
                 requestHandle.persistent = "true";
-            } 
+            }
             else if (hdr.value.toLowerCase() === "close") {
                 requestHandle.persistent = "false";
-            } 
+            }
         }
     }
 
@@ -174,39 +169,14 @@ function logOnBeforeSendHeaders(eventDetails) {
     // If the request connection is "stay-alive" we assume that the connection will create a single flow.
     // If the request connection in turn is "close" we will assume that subsequent http requests will create unique flows.
     if (requestHandle.persistent === undefined) {
-       // default to non persistent
-       requestHandle.persistent = "false"; 
+        // default to non persistent
+        requestHandle.persistent = "false";
     }
-    
-    if (requestHandle.persistent === "true")
-    {
-        // If the request is persistent we won't do anything different
-    }
-    else
-    {
-        console.log("*****************");
-        console.log("NON-PERSISTENT request id : " + requestHandle.id);
-        console.log("*****************");
-        // If the request is non persistent then we should check if the user selection has been made
-        referenceRequestHandle = requests.find(({ host }) => host === requestHandle.host);
-        if (referenceRequestHandle === undefined) {
-            if(requestHandle.method.toLowerCase() != "get" || requestHandle.type.toLowerCase() != "main_frame") {
-                log.error("No reference for host: " + requestHandle.host + " , requestId : " + requestHandle.id);
-            }
-        }  
-        else {
-            requestHandle.userSelection = referenceRequestHandle.userSelection;
-        }
-    }
-
 
     // Get event datails?
-    if (optionsExtendedWith === "All" || optionsExtendedWith.includes("BeforeSendHeaders")) {
-        extendedData = { source: "BeforeSendHeaders", eventDetails: eventDetails };
-        requestHandle.extendedData.push(extendedData);
-    }
+    logEvent("BeforeSendHeaders", eventDetails, requestHandle);
 
-    return {requestHeaders: eventDetails.requestHeaders};
+    return { requestHeaders: eventDetails.requestHeaders };  // TAKE ME OUT
 }
 
 /* onSendHeaders
@@ -214,10 +184,7 @@ function logOnBeforeSendHeaders(eventDetails) {
    If your extension or some other extension modified headers in onBeforeSendHeaders,
    you'll see the modified version here. */
 function logOnSendHeaders(eventDetails) {
-    if (DEBUG === "ON") {
-        console.log("Entrace to logOnSendHeaders");
-        console.log(eventDetails);
-    }
+    trace("logOnSendHeaders", eventDetails);
 
     requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
     if (requestHandle === undefined) {
@@ -226,25 +193,19 @@ function logOnSendHeaders(eventDetails) {
         console.error("Request not found after creating request");
         console.log(eventDetails);
     }
-    
+
+    // TIME STAMP TO USED TO FIND FLOW!!!!
     requestHandle.timeStamp = eventDetails.timeStamp;
 
     // Get event datails?
-    if (optionsExtendedWith === "All" || optionsExtendedWith.includes("SendHeaders")) {
-        extendedData = { source: "SendHeaders", eventDetails: eventDetails };
-        requestHandle.extendedData.push(extendedData);
-    }
+    logEvent("SendHeaders", eventDetails, requestHandle);
 }
 
 /* onHeadersReceived
    Fired when the HTTP response headers for a request are received.
    Use this event to modify HTTP response headers. */
 function logOnHeadersReceived(eventDetails) {
-    if (DEBUG === "ON") {
-        console.log("Entrace to logOnHeadersReceived");
-        console.log(eventDetails);
-        console.log(requests);
-    }
+    trace("logOnHeadersReceived", eventDetails);
 
     // Add destinationIp to the request 
     const requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
@@ -254,47 +215,45 @@ function logOnHeadersReceived(eventDetails) {
         console.error("No request struct for id: " + eventDetails.requestId + " in lonOnHeadersReceived!!!");
     }
     else {
-        if (requestHandle.Status === "Redirected") {
-            // When a redirect is needed we might have a different ip address to track
-            if (requestHandle.destinationIp != eventDetails.ip) {
-                result.BeforeRedirectDestIp = result.detinationIp;
-            }
-        }
-
         // Check if it got response from cache
         if (eventDetails.ip === null) {
             const requestHandleBkp = requests.find(({ url }) => url === eventDetails.url);
             if (requestHandleBkp === undefined) {
-                console.error("The request ip is null and cannot be retrieved from backup : rqst : " + eventDetails.url);
+                console.error("Request from cache : " + eventDetails.url + " does not exist in backups");
             }
             else {
-                requestHandle.destinationIp = requestHandleBkp.destinationIp;
-
-                // Mark to remove the original and let the new one be referenced
-                requestHandleBkp.statusCode = "Remove";
+                while (requestHandleBkp != undefined) {
+                    if (requestHandleBkp.id != requestHandle.id) {
+                        requestHandle.destinationIp = requestHandleBkp.destinationIp;
+                        // Mark to remove the original and let the new one be referenced
+                        requestHandleBkp.statusCode = "Remove";
+                    }
+                    else {
+                        // Itself. Break while
+                        break;
+                    }
+                }
             }
         }
         else {
+            if (requestHandle.requestStatus === "Redirected") {
+                // When a redirect is needed we might have a different ip address to track
+                if (requestHandle.destinationIp != eventDetails.ip) {
+                    requestHandle.BeforeRedirectDestIp = requestHandle.detinationIp;
+                }
+            }
             requestHandle.destinationIp = eventDetails.ip;
         }
     }
 
-
-
     // Get event datails?
-    if (optionsExtendedWith === "All" || optionsExtendedWith.includes("HeadersReceived")) {
-        extendedData = { source: "HeadersReceived", eventDetails: eventDetails };
-        requestHandle.extendedData.push(extendedData);
-    }
+    logEvent("HeadersReceived", eventDetails, requestHandle);
 }
 
 /* onBeforeRedirect
    Fired when a request has completed. */
 function logOnBeforeRedirect(eventDetails) {
-    if (DEBUG === "ON") {
-        console.log("Entrace to logOnBeforeRedirect");
-        console.log(eventDetails);
-    }
+    trace("logOnBeforeRedirect", eventDetails);
 
     // Create a redirection entry
     const requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
@@ -308,20 +267,13 @@ function logOnBeforeRedirect(eventDetails) {
     }
 
     // Get event datails?
-    if (optionsExtendedWith === "All" || optionsExtendedWith.includes("BeforeRedirect")) {
-        extendedData = { source: "BeforeRedirect", eventDetails: eventDetails };
-        requestHandle.extendedData.push(extendedData);
-    }
+    logEvent("BeforeRedirect", eventDetails, requestHandle);
 }
 
 /* onResponseStarted
    Fired when the first byte of the response body is received. */
 function logOnResponseStarted(eventDetails) {
-    if (DEBUG === "ON") {
-        console.log("Entrace to logOnResponseStarted");
-        console.log(eventDetails);
-        console.log(requests);
-    }
+    trace("BeforeRedirect", eventDetails);
 
     requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
     if (requestHandle === undefined) {
@@ -331,20 +283,13 @@ function logOnResponseStarted(eventDetails) {
     }
 
     // Get event datails?
-    if (optionsExtendedWith === "All" || optionsExtendedWith.includes("ResponseStarted")) {
-        extendedData = { source: "ResponseStarted", eventDetails: eventDetails };
-        requestHandle.extendedData.push(extendedData);
-    }
+    logEvent("ResponseStarted", eventDetails, requestHandle);
 }
 
 /* onCompleted
    Fired when a request has completed. */
 async function logOnCompleted(eventDetails) {
-    if (DEBUG === "ON") {
-        console.log("Entrace to logOnCompleted");
-        console.log(eventDetails);
-        console.log(requests);
-    }
+    trace("logOnCompleted", eventDetails);
 
     // Log onCompleted time
     const requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
@@ -354,36 +299,168 @@ async function logOnCompleted(eventDetails) {
     }
     else {
         requestHandle.completedTime = eventDetails.timeStamp;
-        // The onCompleted ip might yet be different here
-        requestHandle.completedIp = eventDetails.ip;
-        requestHandle.requestStatus = eventDetails.statusCode;
+        if (requestHandle.statusCode === "New") {
+            requestHandle.statusCode = "Waiting";
+        }
+
+        // If the ip is null get it from destinationIp
+        if (eventDetails.ip != null) {
+            requestHandle.completedIp = eventDetails.ip;
+        }
+        else {
+            requestHandle.completedIp = requestHandle.destinationIp;
+        }
+
+        if (!(eventDetails.method.toLowerCase() === "get" && eventDetails.type.toLowerCase() === "main_frame")) {
+            // If it is not persitent look for the get main_frame reference
+            if (requestHandle.persistent != "true" && requestHandle.userSelection === undefined) {
+                console.log("*****************");
+                console.log("NON-PERSISTENT request id : " + requestHandle.id);
+                console.log("*****************");
+
+                // If the request is non persistent then we should check if the user selection has been made
+                referenceRequestHandle = requests.find(({ host }) => host === requestHandle.host);
+                if (referenceRequestHandle === undefined) {
+                    if (!(eventDetails.type.toLowerCase() === "main_frame" && eventDetails.method.toLowerCase() === "get")) {
+                        console.error("No reference for host: " + requestHandle.host + " , requestId : " + requestHandle.id);
+                    }
+                    requestHandle.statusCode = "Unprocessed";
+                }
+                else {
+                    if (referenceRequestHandle.userSelection != undefined) {
+                        requestHandle.userSelection = referenceRequestHandle.userSelection;
+                    }
+                    else {
+                        requestHandle.statusCode = "Unprocessed";
+                    }
+                }
+            }
+
+            // If the request is a different host altogether
+            if (eventDetails.originUrl != null && requestHandle.userSelection === undefined && requestHandle.statusCode === "Waiting") {
+                // Check if we can find user selection from origin url
+                requestHandle.originUrl = eventDetails.originUrl;
+
+                referenceRequestHandle = requests.find(({ url }) => url === requestHandle.originUrl);
+                if (referenceRequestHandle === undefined) {
+                    console.error("No reference origin url: " + requestHandle.originUrl + ", requestId : " + requestHandle.id);
+                    requestHandle.statusCode = "Orphaned";
+                }
+                else {
+                    if (referenceRequestHandle.userSelection != undefined) {
+                        requestHandle.userSelection = referenceRequestHandle.userSelection;
+                    }
+                    else {
+                        requestHandle.statusCode = "Orphaned";
+                    }
+                }
+            }
+        }
+        else if (eventDetails.method.toLowerCase() === "get" && eventDetails.type.toLowerCase() === "main_frame") {
+            requestHandle.statusCode = "GetMain";
+            // Call pop up
+            try {
+                browser.windows.create({
+                    type: "popup", url: "/popup.html",
+                    top: 0, left: 0, width: 400, height: 300,
+                    titlePreface: "%" + requestHandle.id + "%"
+                });
+            }
+            catch (err) {
+                console.log("Creating popup failed");
+                console.error(err);
+            }
+
+            // Lets look for any straggler requests
+            // We do this here because this is less likely to happen so we don't do it often and slow everything else down
+            for (let rqst of requests) {
+                if (rqst.statusCode === "Remove") {
+                    result = requests.findIndex(({ id }) => id === rqst.id);
+                    if (result === -1) {
+                        // why are we here without a request for this requestId?
+                        console.error("No request for id: " + rqst.id + " in logOnCompleted!!!");
+                    }
+                    while (result != -1) {
+                        console.log("delete id : " + rqst.id + " in onCompleted because it was marked remove!!!");
+                        requests.splice(result, 1);
+                        result = requests.findIndex(({ id }) => id === rqst.id);
+                    }
+                }
+            }
+            // Check for dupe get main_frame
+            // destroy duplicate requests. LILO
+            duplicate = requests.find(({ url }) => url === requestHandle.url);
+            if (duplicate === undefined) {
+                // This is bad because it should at least find itself in here.
+                console.error("GET Main_Frame request url : " + requestHandle.url + " does not exist in delete dupes in onCompleted!")
+            }
+
+            while (duplicate != undefined) {
+                if (duplicate.completedTime != requestHandle.completedTime) {
+                    // Delete dupe
+                    console.log("deleted dupe: rqst id : " + duplicate.id);
+                    dupeIndex = requests.findIndex(({ id }) => id === duplicate.id);
+                    requests.splice(dupeIndex, 1);
+                    duplicate = requests.find(({ url }) => url === requestHandle.url);
+                }
+                else {
+                    // Itself. Break while
+                    break;
+                }
+            }
+        }
+    }
+    // // check again
+    for (let rqst of requests) {
+
+        if (rqst.statusCode === "Waiting") {
+            referenceRequestHandle = requests.find(({ host }) => host === rqst.host);
+            if (referenceRequestHandle === undefined) {
+                console.error("No reference for host: " + rqst.host + " , requestId : " + rqst.id);
+                rqst.statusCode = "Unprocessed";
+            }
+            else {
+                if (referenceRequestHandle.userSelection != undefined) {
+                    rqst.userSelection = referenceRequestHandle.userSelection;
+                    rqst.statusCode = "SentReady";
+                }
+                else {
+                    rqst.statusCode = "Unprocessed";
+                }
+            }
+        }
+        if (rqst.statusCode === "Waiting") {
+            referenceRequestHandle = requests.find(({ url }) => url === rqst.originUrl);
+            if (referenceRequestHandle === undefined) {
+                console.error("No reference origin url: " + rqst.originUrl + ", requestId : " + rqst.id);
+                rqst.statusCode = "Orphaned";
+            }
+            else {
+                if (referenceRequestHandle.userSelection != undefined) {
+                    rqst.userSelection = referenceRequestHandle.userSelection;
+                    rqst.statusCode = "SentReady";
+                }
+                else {
+                    rqst.statusCode = "Orphaned";
+                }
+            }
+        }
     }
 
-    // If the request is non persistant and user selection is not available yet. Save it until the user selection is available. 
-    if ( requestHandle.userSelection === undefined && requestHandle.persistent === "false") {
-        // skip the main requests
-        if( !( eventDetails.method.toLowerCase() === "get" && eventDetails.type.toLowerCase() === "main_frame" )) {
-            requestHandle.statusCode = "Unprocessed";
-        } 
-    }
-
-
-    // If this event has a userSelection on it already and it has a non persistent connection then call native app immediately
-    if ( requestHandle.userSelection != undefined && requestHandle.persistent === "false" &&
-         !(eventDetails.type.toLowerCase() === "main_frame" && eventDetails.method.toLowerCase() === "get"))
-    {
+    for (let rqst of requests) {
+        if (rqst.statusCode === "SentReady") {
             message = {
                 state: state,
                 dataIn: [{
-                    tabId: requestHandle.tabId,
-                    destinationIp: requestHandle.destinationIp,
-                    destinationPort: requestHandle.destinationPort,
-                    userSelection: requestHandle.userSelection,
-                    epochTime: requestHandle.timeStamp,
-                    completedIp: requestHandle.completedIp,
-                    requestId: requestHandle.id,
-                    originalDestIp: requestHandle.originalDestIp,
-                    extendedData: requestHandle.extendedData,
+                    tabId: rqst.tabId,
+                    destinationIp: rqst.destinationIp,
+                    destinationPort: rqst.destinationPort,
+                    userSelection: rqst.userSelection,
+                    epochTime: rqst.timeStamp,
+                    completedIp: rqst.completedIp,
+                    requestId: rqst.id,
+                    originalDestIp: rqst.originalDestIp,
+                    extendedData: rqst.extendedData,
                     FirefoxPID: FirefoxPID,
                     os: os
                 }],
@@ -392,81 +469,18 @@ async function logOnCompleted(eventDetails) {
                 exitMessage: ""
             };
             callNative();
-    
-    } 
 
-    // Call pop up
-    if (eventDetails.method.toLowerCase() === "get" && eventDetails.type.toLowerCase() === "main_frame") {
-        //console.log(requestHandle);
-        try {
-            browser.windows.create({
-                type: "popup", url: "/popup.html",
-                top: 0, left: 0, width: 400, height: 300,
-                titlePreface: "%" + requestHandle.id + "%"
-            });
-        }
-        catch (err) {
-            console.log("Creating popup failed");
-            console.error(err);
-        }
-
-        // Lets look for any straggler requests
-        // We do this here because this is less likely to happen so we don't do it often and slow everything else down
-        for (let rqst of requests) {
-            if (rqst.method.toLowerCase() != "get" || rqst.type.toLowerCase() != "main_frame" || rqst.statusCode === "Remove") {
-                result = requests.findIndex(({ id }) => id === rqst.id);
-                if (result === -1) {
-                    // why are we here without a request for this requestId?
-                    console.error("No request for id: " + rqst.id + " in logOnCompleted!!!");
-                }
-                while (result != -1) {
-                    requests.splice(result, 1);
-                    result = requests.findIndex(({ id }) => id === rqst.id);
-                }
-            }
+            rqst.statusCode = "Remove";
         }
     }
-
+    // Clean up
+    for (let rqst of requests) {
+        if (rqst.statusCode === "Remove") {
+            deleteRequest(rqst.id);
+        }
+    }
     // Get event details?
-    if (optionsExtendedWith === "All" || optionsExtendedWith.includes("Completed")) {
-        extendedData = { source: "Completed", eventDetails: eventDetails };
-        requestHandle.extendedData.push(extendedData);
-    }
-
-    // destroy request for anything not "GET" and "main_frame"
-    if ((requestHandle.method.toLowerCase() != "get" || requestHandle.type.toLowerCase() != "main_frame") && 
-        (requestHandle.statusCode === undefined || requestHandle.statusCode != "Unprocessed")) {
-        result = requests.findIndex(({ id }) => id === eventDetails.requestId);
-        if (result === -1) {
-            // why are we here without a request for this requestId?
-            console.error("No request for id: " + eventDetails.requestId + " in onCompleted!!!");
-        }
-        while (result != -1) {
-            requests.splice(result, 1);
-            result = requests.findIndex(({ id }) => id === eventDetails.requestId);
-        }
-    }
-    else {
-        // destroy duplicate requests. LILO
-        duplicate = requests.find(({ url }) => url === requestHandle.url);
-        if (duplicate === undefined) {
-            // This is bad because it should at least find itself in here.
-            console.error("GET Main_Frame request url : " + requestHandle.url + " does not exist in delete dupes in onCompleted!")
-        }
-
-        while (duplicate != undefined) {
-            if (duplicate.completedTime != requestHandle.completedTime) {
-                // Delete dupe
-                dupeIndex = requests.findIndex(({ id }) => id === duplicate.id);
-                requests.splice(dupeIndex, 1);
-                duplicate = requests.find(({ url }) => url === requestHandle.url);
-            }
-            else {
-                // Itself. Break while
-                break;
-            }
-        }
-    }
+    logEvent("Completed", eventDetails, requestHandle);
 }
 
 /* callNative
@@ -490,23 +504,23 @@ function logCreatedTab(createdTab) {
 
         os = info.os;
 
-	if (DEBUG === "ON") {
-	    console.log("Entrace to logCreatedTab");
-	    console.log(os);
-	    console.log(createdTab);
-	}
+        if (DEBUG === "ON") {
+            console.log("Entrace to logCreatedTab");
+            console.log(os);
+            console.log(createdTab);
+        }
 
-	// Check if output file exists if not create it
-	// Get the options
-	state = "session_start";
-	message = {
-	    state: state,
-	    dataIn: [{os: os}],
-	    dataOut: [],
-	    exitMessage: ""
-	};
+        // Check if output file exists if not create it
+        // Get the options
+        state = "session_start";
+        message = {
+            state: state,
+            dataIn: [{ os: os }],
+            dataOut: [],
+            exitMessage: ""
+        };
 
-	callNative();
+        callNative();
     });
 
 }
@@ -617,9 +631,10 @@ browser.runtime.onMessage.addListener((msg) => {
         const requestHandle = requests.find(({ id }) => id === msg.requestId);
         if (requestHandle === undefined) {
             // why are we here without a request for this requestId?
-            console.error("No request for id: " + eventDetails.requestId + " in get_hdrs!!!");
+            console.error("No request for id: " + msg.requestId + " in get_user_selection!!!");
         }
         else {
+            // This is the request for the get main_frame
             requestHandle.userSelection = msg.response;
             message = {
                 state: state,
@@ -642,83 +657,114 @@ browser.runtime.onMessage.addListener((msg) => {
             };
             callNative();
 
-            // Process unprocessed connections
-            for (let rqst of requests) {
-                if ( rqst.statusCode === "Unprocessed" && rqst.host === requestHandle.host) {
-                     message = {
-                         state: state,
-                         dataIn: [{
-                             tabId: rqst.tabId,
-			     destinationIp: rqst.destinationIp,
-			     destinationPort: rqst.destinationPort,
-			     userSelection: msg.response,
-			     epochTime: rqst.timeStamp,
-			     completedIp: rqst.completedIp,
-			     requestId: rqst.id,
-			     originalDestIp: rqst.originalDestIp,
-			     extendedData: rqst.extendedData,
-			     FirefoxPID: FirefoxPID,
-			     os: os
-			}],
-			dataOut: [],
-			optionsSendWith: optionsSendWith,
+            // All other unprocessed requests
+            console.log("about to process unprocessed");
+            for( let rqst of requests) {
+                console.log("in for each");
+                console.log(rqst);
+                console.log(requests);
+                if (rqst.statusCode === "Unprocessed" && rqst.host === requestHandle.host && rqst.tabId === requestHandle.tabId) {
+                    rqst.userSelection = msg.response;
+                    message = {
+                        state: state,
+                        dataIn: [{
+                            tabId: rqst.tabId,
+                            destinationIp: rqst.destinationIp,
+                            destinationPort: rqst.destinationPort,
+                            userSelection: rqst.userSelection,
+                            epochTime: rqst.timeStamp,
+                            completedIp: rqst.completedIp,
+                            requestId: rqst.id,
+                            originalDestIp: rqst.originalDestIp,
+                            extendedData: rqst.extendedData,
+                            FirefoxPID: FirefoxPID,
+                            os: os
+                        }],
+                        dataOut: [],
+                        optionsSendWith: optionsSendWith,
                         exitMessage: ""
-		     };
+                    };
                     callNative();
 
-		    // Delete processed rqst 
-		    result = requests.findIndex(({ id }) => id === rqst.id);
-		    if (result === -1) {
-			// why are we here without a request for this requestId?
-			console.error("No request for id: " + rqst.id + " in logOnCompleted!!!");
-		    }
+                    rqst.statusCode = "Remove";
+                }
+                else if (rqst.statusCode === "Orphaned" && rqst.originUrl === requestHandle.url && rqst.tabId === requestHandle.tabId) {
+                    console.log("*****************");
+                    console.log("Other HOST request id : " + rqst.id);
+                    console.log("*****************");
+                    // If the request is non persistent then we should check if the user selection has been made
+                    rqst.userSelection = requestHandle.userSelection;
+                    // Off with it
+                    message = {
+                        state: state,
+                        dataIn: [{
+                            tabId: rqst.tabId,
+                            destinationIp: rqst.destinationIp,
+                            destinationPort: rqst.destinationPort,
+                            userSelection: rqst.userSelection,
+                            epochTime: rqst.timeStamp,
+                            completedIp: rqst.completedIp,
+                            requestId: rqst.id,
+                            originalDestIp: rqst.originalDestIp,
+                            extendedData: rqst.extendedData,
+                            FirefoxPID: FirefoxPID,
+                            os: os
+                        }],
+                        dataOut: [],
+                        optionsSendWith: optionsSendWith,
+                        exitMessage: ""
+                    };
+                    callNative();
 
-		    while (result != -1) {
-			requests.splice(result, 1);
-		        result = requests.findIndex(({ id }) => id === rqst.id);
-	            }
-		}
+                    rqst.statusCode = "Remove";
+                }
+            }
+            // Clean up
+            for (let rqst of requests) {
+                if (rqst.statusCode === "Remove") {
+                    deleteRequest(rqst.id);
+                }
             }
         }
-	return Promise.resolve(true);
+        return Promise.resolve(true);
     }
 });
 
-    /*****************************************************************
-     * Event Listeners
-     ****************************************************************/
-    // onBeforeRequest Listener
-    browser.webRequest.onBeforeRequest.addListener(
-	logOnBeforeRequest,
-	{ urls: [targetPage] },
-	["requestBody"]
-    );
-    // onBeforeSendHeaders Listener
-    browser.webRequest.onBeforeSendHeaders.addListener(
-	logOnBeforeSendHeaders,
-	{ urls: [targetPage] },
-	["blocking", "requestHeaders"]
-    );
-    //  onSendHeaders Listener
-    browser.webRequest.onSendHeaders.addListener(
-	logOnSendHeaders,
-	{ urls: [targetPage] },
-	["requestHeaders"]
-    );
-    // onHeadersReceived
-    browser.webRequest.onHeadersReceived.addListener(
-	logOnHeadersReceived,
-	{ urls: [targetPage] },
-	["blocking", "responseHeaders"]
-    );
-    // onResponseStarted
-    browser.webRequest.onResponseStarted.addListener(
-	logOnResponseStarted,
-	{ urls: [targetPage] },
-	["responseHeaders"]
-    );
-    // OnCompleted Listener
-    browser.webRequest.onCompleted.addListener(
+/*****************************************************************
+ * Event Listeners
+ ****************************************************************/
+// onBeforeRequest Listener
+browser.webRequest.onBeforeRequest.addListener(
+    logOnBeforeRequest,
+    { urls: [targetPage] },
+    ["requestBody"]
+);
+// onBeforeSendHeaders Listener
+browser.webRequest.onBeforeSendHeaders.addListener(
+    logOnBeforeSendHeaders,
+    { urls: [targetPage] },
+    ["blocking", "requestHeaders"]
+);
+//  onSendHeaders Listener
+browser.webRequest.onSendHeaders.addListener(
+    logOnSendHeaders,
+    { urls: [targetPage] },
+    ["requestHeaders"]
+);
+// onHeadersReceived
+browser.webRequest.onHeadersReceived.addListener(
+    logOnHeadersReceived,
+    { urls: [targetPage] },
+    ["blocking", "responseHeaders"]
+);
+// onResponseStarted
+browser.webRequest.onResponseStarted.addListener(
+    logOnResponseStarted,
+    { urls: [targetPage] },
+    ["responseHeaders"]
+);
+// OnCompleted Listener
+browser.webRequest.onCompleted.addListener(
     logOnCompleted,
     { urls: [targetPage] },
     ["responseHeaders"]);
@@ -744,6 +790,35 @@ function onError(error) {
     console.log(`Error: ${error}`);
 }
 
+function logEvent(source, eventDetails, requestHandle) {
+    // Get event datails?
+    if (optionsExtendedWith === "All" || optionsExtendedWith.includes(source)) {
+        extendedData = { source: source, eventDetails: eventDetails };
+        requestHandle.extendedData.push(extendedData);
+    }
+}
+
+function trace(source, eventDetails) {
+    if (DEBUG === "ON") {
+        console.log("Entrace to " + source);
+        console.log(eventDetails);
+        console.log(requests);
+    }
+}
+
+function deleteRequest(requestId) {
+    // Delete processed rqst 
+    result = requests.findIndex(({ id }) => id === requestId);
+    if (result === -1) {
+        // why are we here without a request for this requestId?
+        console.error("No request for id: " + requestId + " in deleteRequest!!!");
+    }
+
+    while (result != -1) {
+        requests.splice(result, 1);
+        result = requests.findIndex(({ id }) => id === requestId);
+    }
+}
 // On Installed
 //browser.runtime.onInstalled.addListener(() => {
 //    browser.contextMenus.create({
