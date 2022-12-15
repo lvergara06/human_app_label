@@ -351,7 +351,7 @@ async function logOnCompleted(eventDetails) {
                             requestHandle.statusCode = "HostSentReady";
                             break;
                         }
-                        else if (referenceRequestHandle === undefined) {
+                        else if (referenceRequestHandle.userSelection === undefined) {
                             requestHandle.statusCode = "Orphaned";
                         }
                     }
@@ -397,38 +397,6 @@ async function logOnCompleted(eventDetails) {
             }
         }
     }
-    // // check again
-    //for (let rqst of requests) {
-
-    //    if (rqst.statusCode === "Waiting") {
-    //        referenceRequestHandle = requests.find(({ host }) => host === rqst.host);
-    //        if (referenceRequestHandle === undefined) {
-    //            referenceRequestHandle = requests.find(({ url }) => url === rqst.originUrl);
-    //            if (referenceRequestHandle === undefined) {
-    //                console.error("No reference origin url: " + rqst.originUrl + ", requestId : " + rqst.id);
-    //                rqst.statusCode = "Orphaned";
-    //            }
-    //            else {
-    //                if (referenceRequestHandle.userSelection != undefined) {
-    //                    rqst.userSelection = referenceRequestHandle.userSelection;
-    //                    rqst.statusCode = "SentReady";
-    //                }
-    //                else {
-    //                    rqst.statusCode = "Orphaned";
-    //                }
-    //            }
-    //        }
-    //        else {
-    //            if (referenceRequestHandle.userSelection != undefined) {
-    //                rqst.userSelection = referenceRequestHandle.userSelection;
-    //                rqst.statusCode = "SentReady";
-    //            }
-    //            else {
-    //                rqst.statusCode = "Unprocessed";
-    //            }
-    //        }
-    //    }
-    //}
 
     for (let rqst of requests) {
         if (rqst.statusCode === "ChildSentReady" || rqst.statusCode === "HostSentReady") {
