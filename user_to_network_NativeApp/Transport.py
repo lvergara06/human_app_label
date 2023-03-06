@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 # This App receives messages from HttpSendInfo extension in firefox
 # This App must be installed prior to extension
