@@ -129,28 +129,19 @@ try:
         responseMessage['exitMessage'] += getOptions(responseMessage);    
         
         #Get firefox main pid
-        if receivedMessage['dataIn'][0]['os'] == "win":
-            p = subprocess.Popen(["tasklist"], stdout=subprocess.PIPE)
-        else:
-            p = subprocess.Popen(["ps", "-eaf"], stdout=subprocess.PIPE)
+        p = subprocess.Popen(["ps", "-eaf"], stdout=subprocess.PIPE)
         out = p.stdout.read()
         decodedTasklist = out.decode('ascii')
-    #print(decodedTasklist)
-        if receivedMessage['dataIn'][0]['os'] == "win":
-            out_tasklist = decodedTasklist.split('\r\n')
-        else:
-            out_tasklist = decodedTasklist.split('\n')
+        out_tasklist = decodedTasklist.split('\n')
         mainPID = []
         for line in out_tasklist:
-            if receivedMessage['dataIn'][0]['os'] == "win":
-                if line.find("firefox.exe") >= 0:
-                    mainPID=line
-                    break
-            else:
-                # /opt/firefox/firefox is the Firefox Dev version
-                if line.find("/opt/firefox/firefox") >= 0:
-                    mainPID=line
-                    break
+            # skip web-ext processes
+            if line.find("web-ext") >= 0:
+                continue
+            # /opt/firefox/firefox is the Firefox Dev version
+            if line.find("/opt/firefox/firefox") >= 0:
+                mainPID=line
+                break
         split = ' '.join(mainPID.split()).split(' ')        
         # Add the firefox main pid to the response
         responseMessage['dataOut'].append(("FirefoxPID", split[1]))
