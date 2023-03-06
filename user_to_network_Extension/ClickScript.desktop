@@ -1,0 +1,6 @@
+﻿[Desktop Entry]
+Type=Application
+Terminal=true
+Name=Click-Script
+Exec=gnome-terminal -- %f
+Icon=/opt/firefox/browser/chrome/icons/default/default128.png
