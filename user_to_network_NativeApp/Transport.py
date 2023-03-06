@@ -200,21 +200,13 @@ try:
             # Look for the connections per destinationIp and firefox pid
             for line in out_netstat:
                 netstatLineSplit = ' '.join(line.split()).split(' ')
-                if (len(netstatLineSplit) == 5 and runningOs == "win") or (len(netstatLineSplit) == 7 and runningOs != "win"):  # Picks out the blanks
-                    if runningOs == "win":
-                        netstatLineDestinationIP = netstatLineSplit[2].split(':')[0] 
-                        netstatLineDestinationPort = netstatLineSplit[2].split(':')[1]
-                        netstatLinePID = netstatLineSplit[4]
-                        netstatLineSourceIP = netstatLineSplit[1].split(':')[0]
-                        netstatLineSourcePort = netstatLineSplit[1].split(':')[1]
-                        netstatLineState = netstatLineSplit[3]
-                    else:
-                        netstatLineDestinationIP = netstatLineSplit[4].split(':')[0]
-                        netstatLineDestinationPort = netstatLineSplit[4].split(':')[1]
-                        netstatLinePID = netstatLineSplit[6].split('/')[0]
-                        netstatLineSourceIP = netstatLineSplit[3].split(':')[0]
-                        netstatLineSourcePort = netstatLineSplit[3].split(':')[1]
-                        netstatLineState = netstatLineSplit[5]
+                if len(netstatLineSplit) == 7 :  # Picks out the blanks
+                    netstatLineDestinationIP = netstatLineSplit[4].split(':')[0]
+                    netstatLineDestinationPort = netstatLineSplit[4].split(':')[1]
+                    netstatLinePID = netstatLineSplit[6].split('/')[0]
+                    netstatLineSourceIP = netstatLineSplit[3].split(':')[0]
+                    netstatLineSourcePort = netstatLineSplit[3].split(':')[1]
+                    netstatLineState = netstatLineSplit[5]
                     
                     if (len(receivedMessage['dataIn'][0]) > 0 and 
                         netstatLineDestinationIP == receivedMessage['dataIn'][0]['destinationIp'] and 
