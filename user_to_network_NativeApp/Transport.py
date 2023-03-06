@@ -36,8 +36,7 @@ from time import sleep
 import requests
 import getopt
 
-linuxConfigFile = "/tmp/Transport.conf" ## This file has the line arguments for linux 
-                                     ## In windows you can add the line argument to Transport_win.bat
+linuxConfigFile = "~/user_to_network/user_to_network_NativeApp/Transport.conf" ## This file has the line arguments for linux
 
 try:
     # Python 3.x version
@@ -65,31 +64,21 @@ try:
         
     def getOptions (responseMessage):
         errorMsg = ""
-        argv = sys.argv[1:]
         original_stdout = sys.stdout
-        if len(sys.argv) < 2:
-            if responseMessage['dataIn'][0]['os'] == "win":
-                # All defaults
-                responseMessage['dataOut'].append(('popupOption' , 'News'))
-                responseMessage['dataOut'].append(('popupOption' , 'Streaming'))
-                responseMessage['dataOut'].append(('popupOption' , 'Social Media'))
-                responseMessage['dataOut'].append(('popupOption' , 'Rather not say'))
-                responseMessage['dataOut'].append(('jsonFile' , '/tmp/connections.json'))
-                responseMessage['dataOut'].append(('csvFile' , '/tmp/connections.csv'))
-                return
-            else:
-                if path.exists(linuxConfigFile) != True:
-                    # All defaults
-                    responseMessage['dataOut'].append(('popupOption' , 'News'))
-                    responseMessage['dataOut'].append(('popupOption' , 'Streaming'))
-                    responseMessage['dataOut'].append(('popupOption' , 'Social Media'))
-                    responseMessage['dataOut'].append(('popupOption' , 'Rather not say'))
-                    responseMessage['dataOut'].append(('jsonFile' , '/tmp/connections.json'))
-                    responseMessage['dataOut'].append(('csvFile' , '/tmp/connections.csv'))    
-                    return "File : " + linuxConfigFile + " not found"
-                else:
-                    with open(linuxConfigFile, 'r') as f:
-                        argv = f.readline().split()
+        if path.exists(linuxConfigFile) != True:
+            # All defaults
+            responseMessage['dataOut'].append(('popupOption' , 'News'))
+            responseMessage['dataOut'].append(('popupOption' , 'Streaming'))
+            responseMessage['dataOut'].append(('popupOption' , 'Social Media'))
+            responseMessage['dataOut'].append(('popupOption' , 'Rather not say'))
+            responseMessage['dataOut'].append(('jsonFile' , '~/user_to_network/user_to_network_NativeApp/connections.json'))
+            responseMessage['dataOut'].append(('csvFile' , '~/user_to_network/user_to_network_NativeApp/connections.csv'))
+            return "File : " + linuxConfigFile + " not found. Using default ~/user_to_network/user_to_netwok_NativeApp."
+        else:
+            errorMsg += " Configfile found!"
+            with open(linuxConfigFile, 'r') as f:
+                argv = f.readline().split()
+
 
         # Parse the arguments
         # -s : Send with - Default is to have the native app send the connections to the api via http post. Use -s if you want the browser to send it
@@ -118,8 +107,9 @@ try:
         if (any('jsonFile' in i for i in responseMessage['dataOut'])):
             pass
         else:
-            responseMessage['dataOut'].append(('jsonFile' , './connections.json'))
-            responseMessage['dataOut'].append(('csvFile' , './connections.csv'))
+            responseMessage['dataOut'].append(('jsonFile' , '~/user_to_network/user_to_network_NativeApp/connections.json'))
+            responseMessage['dataOut'].append(('csvFile' , '~/user_to_network/user_to_network_NativeApp/connections.csv'))
+            errorMsg += "Using default path json and csf files: ~/user_to_network/user_to_network_NativeApp/."
         # list of options tuple (opt, value)
         responseMessage['dataOut'].append(opts)
         
@@ -136,7 +126,7 @@ try:
         responseMessage['exitMessage'] = "Success"
         
         # Get options
-        responseMessage['exitMessage'] = getOptions(responseMessage);    
+        responseMessage['exitMessage'] += getOptions(responseMessage);    
         
         #Get firefox main pid
         if receivedMessage['dataIn'][0]['os'] == "win":
@@ -157,7 +147,8 @@ try:
                     mainPID=line
                     break
             else:
-                if line.find("firefox/firefox") >= 0:
+                # /opt/firefox/firefox is the Firefox Dev version
+                if line.find("/opt/firefox/firefox") >= 0:
                     mainPID=line
                     break
         split = ' '.join(mainPID.split()).split(' ')        
@@ -178,9 +169,7 @@ try:
         responseMessage['exitMessage'] = "Success"
         jsonFile = ""
         csvFile = ""
-        extendData = False
-        runningOs = receivedMessage['dataIn'][0]['os']
-        
+        extendData = False        
         
         # Get options
         responseMessage['exitMessage'] = getOptions(responseMessage); 
@@ -193,20 +182,14 @@ try:
                 extendData=True
 
         #Run netstat 
-        if runningOs == "win":
-            arguments = "-onf" 
-            p = subprocess.Popen(["netstat", arguments], stdout=subprocess.PIPE)
-            out = p.stdout.read()
-            decodedNetstat = out.decode('ascii')
-            out_netstat = decodedNetstat.split('\r\n')  
-        else:
-            arguments = "-antp"
-            p = subprocess.Popen(["netstat", arguments], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-            out = p.stdout.read()
-            decodedNetstat = out.decode('ascii')
-            out_netstat = decodedNetstat.split('\n')
+        # These areguments are based on ubuntu netstat
+        arguments = "-antp"
+        p = subprocess.Popen(["netstat", arguments], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        out = p.stdout.read()
+        decodedNetstat = out.decode('ascii')
+        out_netstat = decodedNetstat.split('\n')
 
-        
+        # Check if the json files already exist or not
         answ = os.path.exists(jsonFile)
         answ2 = os.path.exists(csvFile)
         connectionEntry = {}
