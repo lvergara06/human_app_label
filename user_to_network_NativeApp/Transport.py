@@ -36,7 +36,7 @@ from time import sleep
 import requests
 import getopt
 
-linuxConfigFile = "~/user_to_network/user_to_network_NativeApp/Transport.conf" ## This file has the line arguments for linux
+linuxConfigFile = "/opt/firefox/user_to_network/user_to_network_NativeApp/Transport.conf" ## This file has the line arguments for linux
 
 try:
     # Python 3.x version
@@ -71,9 +71,9 @@ try:
             responseMessage['dataOut'].append(('popupOption' , 'Streaming'))
             responseMessage['dataOut'].append(('popupOption' , 'Social Media'))
             responseMessage['dataOut'].append(('popupOption' , 'Rather not say'))
-            responseMessage['dataOut'].append(('jsonFile' , '~/user_to_network/user_to_network_NativeApp/connections.json'))
-            responseMessage['dataOut'].append(('csvFile' , '~/user_to_network/user_to_network_NativeApp/connections.csv'))
-            return "File : " + linuxConfigFile + " not found. Using default ~/user_to_network/user_to_netwok_NativeApp."
+            responseMessage['dataOut'].append(('jsonFile' , '/opt/firefox/user_to_network/user_to_network_NativeApp/connections.json'))
+            responseMessage['dataOut'].append(('csvFile' , '/opt/firefox/user_to_network/user_to_network_NativeApp/connections.csv'))
+            return "File : " + linuxConfigFile + " not found. Using default /opt/firefox/user_to_network/user_to_netwok_NativeApp."
         else:
             errorMsg += " Configfile found!"
             with open(linuxConfigFile, 'r') as f:
@@ -107,9 +107,9 @@ try:
         if (any('jsonFile' in i for i in responseMessage['dataOut'])):
             pass
         else:
-            responseMessage['dataOut'].append(('jsonFile' , '~/user_to_network/user_to_network_NativeApp/connections.json'))
-            responseMessage['dataOut'].append(('csvFile' , '~/user_to_network/user_to_network_NativeApp/connections.csv'))
-            errorMsg += "Using default path json and csf files: ~/user_to_network/user_to_network_NativeApp/."
+            responseMessage['dataOut'].append(('jsonFile' , '/opt/firefox/user_to_network/user_to_network_NativeApp/connections.json'))
+            responseMessage['dataOut'].append(('csvFile' , '/opt/firefox/user_to_network/user_to_network_NativeApp/connections.csv'))
+            errorMsg += "Using default path json and csf files: /opt/firefox/user_to_network/user_to_network_NativeApp/."
         # list of options tuple (opt, value)
         responseMessage['dataOut'].append(opts)
         
