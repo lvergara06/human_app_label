@@ -13,13 +13,13 @@ then
     sudo apt-get update
     sudo apt-get install git -y
 fi
+echo
+echo
 echo "git Installed"
 echo
 echo
 
 # Clone user_to_network repository
-# Set the Git repository URL
-
 echo "Cloning user_to_network"
 echo
 echo
@@ -34,6 +34,34 @@ fi
 echo
 echo
 
+# Download Firefox Dev
+echo Downloading Firefox Dev
+echo
+echo
+if ! command -v firefox-developer-edition &> /dev/null
+then
+    # Download the latest version of Firefox Developer Edition
+    wget -O firefox.tar.bz2 "https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64&lang=en-US"
+
+    # Extract the downloaded archive
+    tar -xf firefox.tar.bz2
+
+    # Move the extracted Firefox directory to the /opt directory
+    sudo mv firefox /opt/
+
+    # Create a symbolic link for the Firefox binary
+    sudo ln -s /opt/firefox/firefox /usr/bin/firefox-developer-edition
+
+    # Cleanup the downloaded archive
+    rm firefox.tar.bz2
+
+    echo "Firefox Developer Edition is installed."
+else
+    echo "Firefox Developer Edition is already installed."
+fi
+echo
+echo
+
 # Create a space for the app
 echo "Creating app space at /opt/firefox/user_to_network"
 echo
@@ -44,17 +72,27 @@ then
 else
     mkdir -p /opt/firefox/user_to_network    
 fi
+echo "App Space Created"
+echo
+echo
 
 echo "Giving /opt/firefox/user_to_network permissions"
+echo
+echo
 sudo chmod -R 777 /opt/firefox/user_to_network
+echo "/opt/firefox/user_to_network permisions changed"
+echo
+echo
 
+echo "Coping $HOME/user_to_network to /opt/firefox/user_to_network"
 echo
 echo
-echo "Copy user_to_network to /opt/firefox/user_to_network"
 sudo cp -r $HOME/user_to_network/* /opt/firefox/user_to_network
 echo
 echo
 echo "User to network copied to /opt/firefox/user_to_network"
+echo
+echo
 
 # Change the path to the app in Transport.json
 echo "Change path in Transport.json"
@@ -64,6 +102,8 @@ echo path to app is /opt/firefox/user_to_network/user_to_network_NativeApp/Trans
 echo
 echo
 sudo sed -i "s|PATHTOJSON|/opt/firefox/user_to_network/user_to_network_NativeApp/Transport.py|g" /opt/firefox/user_to_network/user_to_network_NativeApp/Transport.json
+echo
+echo
 echo Transport.json is
 cat /opt/firefox/user_to_network/user_to_network_NativeApp/Transport.json
 echo
@@ -71,6 +111,8 @@ echo
 
 # Create mozilla directory and copy json to it
 echo "Creating mozilla directory"
+echo
+echo
 if [ -d "~/.mozilla/native-messaging-hosts" ]
 then
     echo "Mozilla folder exists: ~/.mozilla/native-messaging-hosts"
@@ -79,9 +121,15 @@ else
 fi
 echo
 echo
+echo "Mozilla folder exists: ~/.mozilla/native-messaging-hosts"
+echo
+echo
 
 echo "Copying /opt/firefox/user_to_network/user_to_network_NativeApp/Transport.json to ~/.mozilla/native-messaging-hosts"
+echo
+echo
 cp /opt/firefox/user_to_network/user_to_network_NativeApp/Transport.json ~/.mozilla/native-messaging-hosts
+echo "Transport.json copied"
 echo
 echo
 
@@ -103,6 +151,10 @@ echo "Setting permission with Flatpak"
 echo
 echo
 flatpak permission-set webextension Transport snap.firefox yes
+echo
+echo
+echo "Permissions set
+echo
 
 # Install python 
 # Check if Python is installed
@@ -113,7 +165,8 @@ if ! command -v python3 &> /dev/null
 then
     sudo apt install python3
 fi
-
+echo
+echo
 echo "Python is installed."
 echo
 echo
@@ -127,7 +180,8 @@ if ! command -v pip &> /dev/null
 then
     sudo apt install python3-pip
 fi
-
+echo
+echo
 echo "pip is installed."
 echo
 echo
@@ -206,45 +260,27 @@ echo path to extension is /opt/firefox/user_to_network/user_to_network_Extension
 echo
 echo
 sudo sed -i "s|PATHTOEXTENSION|/opt/firefox/user_to_network/user_to_network_Extension|g" /opt/firefox/user_to_network/user_to_network_Extension/Firefox
-echo Firefox is
+echo Firefox Script is
 cat /opt/firefox/user_to_network/user_to_network_Extension/Firefox
 echo
 cp /opt/firefox/user_to_network/user_to_network_Extension/Firefox ~/Desktop
 chmod 777 ~/Desktop/Firefox
+echo "copied Firefox to ~/Desktop
 echo
 echo
 
 # Install ClickScript to open firefox by double clicking the Firefox file from desktop
+echo "Installing ClickScript to open firefox with double click"
 sudo cp /opt/firefox/user_to_network/user_to_network_Extension/ClickScript.desktop ~/.local/share/applications
 sudo chmod 777 ~/.local/share/applications/ClickScript.desktop
-
-# Download Firefox Dev
-echo Downloading Firefox Dev
-if ! command -v firefox-developer-edition &> /dev/null
-then
-    # Download the latest version of Firefox Developer Edition
-    wget -O firefox.tar.bz2 "https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64&lang=en-US"
-
-    # Extract the downloaded archive
-    tar -xf firefox.tar.bz2
-
-    # Move the extracted Firefox directory to the /opt directory
-    sudo mv firefox /opt/
-
-    # Create a symbolic link for the Firefox binary
-    sudo ln -s /opt/firefox/firefox /usr/bin/firefox-developer-edition
-
-    # Cleanup the downloaded archive
-    rm firefox.tar.bz2
-
-    echo "Firefox Developer Edition is installed."
-else
-    echo "Firefox Developer Edition is already installed."
-fi
-
 echo
 echo
+echo "ClickScript Installed"
+echo
+echo
+
 # Install netstat
+echo "Installing netstat"
 if ! which netstat >/dev/null; then
   echo "netstat is not installed. Installing..."
   if [ -n "$(command -v apt-get)" ]; then

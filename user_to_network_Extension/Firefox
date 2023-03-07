@@ -8,6 +8,9 @@ firefox_dev_path="/opt/firefox/firefox"
 
 # Set the environment variable to start Firefox in light theme
 export MOZ_ENABLE_LIGHT_THEME=1
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+[ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 
 # Run the web-ext tool with the Firefox Developer Edition
 web-ext run --firefox-binary "$firefox_dev_path" -s "$extension_path"
