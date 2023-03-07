@@ -153,7 +153,7 @@ echo
 flatpak permission-set webextension Transport snap.firefox yes
 echo
 echo
-echo "Permissions set
+echo "Setting permission with Flatpak"
 echo
 
 # Install python 
