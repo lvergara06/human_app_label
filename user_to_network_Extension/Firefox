@@ -1,4 +1,4 @@
-﻿#!/bin/bash
+#!/bin/bash
 
 # Set the path to the extension
 extension_path="PATHTOEXTENSION"
