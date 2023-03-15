@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# This App receives messages from HttpSendInfo extension in firefox
+# This App receives messages from background.js extension in firefox
 # This App must be installed prior to extension
 #
 # For Windows add this key registry: HKEY_LOCAL_MACHINE\SOFTWARE\Mozilla\NativeMessagingHosts\Transport

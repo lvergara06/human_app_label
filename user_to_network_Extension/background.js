@@ -1,8 +1,11 @@
 /*****************************************************************
  * Background.js
- *     HttpSendInfo : This extenstion opens a dialog box to the
+ *     This extenstion opens a dialog box to the
  *     user. On user selection the extension sends traffic info
- *     to storage.
+ *     to storage via a navtive app called Transport.py
+ *     This extension extends the various APIs provided by Firefox
+ *     on the different events of a request. Each event is analized
+ *     for important information on the request or response headers. 
  ****************************************************************/
 
 
@@ -27,10 +30,10 @@ let requests = [];               // Requests made so far
 // url: "", url from user
 // method: "", get method from request headers
 // type: "", type of object to fetch (in our case only main_frame)
-// timeStamp: 0, epoch time from request headers
+// timeStamp: 0, epoch time from request headers. Used to match flow.
 // tabId: "", the tab id that started the request
 // destinationIp: "", the destination ip from response headers
-// originalDestIp: "", the destination ip from response headers if there is redicetion involved
+// urlBeforeRedirection: "", the destination ip from response headers if there is redirection involved
 // globalHdrs: [], messages to pass to pop up windows
 // completedIp: "", destination ip if the compleded ip address is not like the response ip
 // requestStatus: "" the status of this request.
@@ -48,7 +51,6 @@ let requests = [];               // Requests made so far
 /* onBeforeRequest Handler
    This event is triggered when a request is about to be made, and before headers are available.
    This is a good place to listen if you want to cancel or redirect the request. */
-// This function opens a dialog box, if yes is selected then headers are logged
 function logOnBeforeRequest(eventDetails) {
 
     trace("logOnBeforeRequest", eventDetails);
@@ -67,7 +69,7 @@ function logOnBeforeRequest(eventDetails) {
             tabId: eventDetails.tabId,
             destinationIp: "",
             destinationPort: "",
-            BeforeRedirectDestIp: "",
+            urlBeforeRedirection: "",
             globalHdrs: [],
             completedIp: "",
             requestStatus: "",
@@ -75,7 +77,8 @@ function logOnBeforeRequest(eventDetails) {
             statusCode: "New",
             originalUrl: undefined,
             userSelection: undefined,
-            originUrl: undefined
+            originUrl: undefined,
+            completedTime: undefined
         };
         requests.push(newRequest);
 
@@ -83,31 +86,37 @@ function logOnBeforeRequest(eventDetails) {
         if (requestHandle === undefined) {
             // Should be an error
             // Even redirects get a new request id. 
-            console.error("Request not found after creating request");
+            console.error("No request struct for id: " + eventDetails.requestId + " in logOnBeforeRequest");
             console.log(eventDetails);
         }
     }
     else {
         //Redirected?
         if (requestHandle.requestStatus != "Redirected") {
-            console.error("Request in before request again without redirection");
+            console.error("Request " + eventDetails.requestId + " in logOnBeforeRequest again without redirection status");
             console.log(requestHandle);
         }
         else {
-            requestHandle.originalUrl = requestHandle.url;
+            // What could have changed during redirection?
+            requestHandle.urlBeforeRedirection = requestHandle.url;
             requestHandle.url = eventDetails.url;
         }
     }
 
     // Save headers to send to popup
+    // Only main_frame GET requests can invoke a popup window.
     if (eventDetails.type.toLowerCase() === "main_frame" && eventDetails.method.toLowerCase() === "get") {
 
         try {
+            // This url header will be passed to the popup window.
+            // Could it already by there if redirected?
             const urlHdr = requestHandle.globalHdrs.find(({ name }) => name === "url");
             if (urlHdr === undefined) {
+                // If not there, added it.
                 requestHandle.globalHdrs.push({ name: "url", value: eventDetails.url });
             }
             else {
+                // If there, update it in case of redirect change.
                 urlHdr.value = eventDetails.url;
             }
         } catch (err) {
@@ -129,7 +138,7 @@ function logOnBeforeSendHeaders(eventDetails) {
     if (requestHandle === undefined) {
         // Should be an error
         // Even redirects get a new request id. 
-        console.error("Request not found after creating request");
+        console.error("No request struct for id: " + eventDetails.requestId + " in logOnBeforeSendHeaders");
         console.log(eventDetails);
     }
 
@@ -141,8 +150,10 @@ function logOnBeforeSendHeaders(eventDetails) {
         if (hdr.name.toLowerCase() === "port") {
             requestHandle.port = hdr.value;
         }
+        // Knowing the persistence of the connection can help
+        // determine if one or more main requests will be sent out
+        // by the same site. 
         if (hdr.name.toLowerCase() === "connection") {
-            //hdr.value = "Close";  // TAKE ME OUT
             if (hdr.value.toLowerCase() === "keep-alive") {
                 requestHandle.persistent = "true";
             }
@@ -175,8 +186,6 @@ function logOnBeforeSendHeaders(eventDetails) {
 
     // Get event datails?
     logEvent("BeforeSendHeaders", eventDetails, requestHandle);
-
-    //return { requestHeaders: eventDetails.requestHeaders };  // TAKE ME OUT
 }
 
 /* onSendHeaders
@@ -190,11 +199,11 @@ function logOnSendHeaders(eventDetails) {
     if (requestHandle === undefined) {
         // Should be an error
         // Even redirects get a new request id. 
-        console.error("Request not found after creating request");
+        console.error("No request struct for id: " + eventDetails.requestId + " in logOnSendHeaders");
         console.log(eventDetails);
     }
 
-    // TIME STAMP TO USED TO FIND FLOW!!!!
+    // This timestamp is the closes to the flow.
     requestHandle.timeStamp = eventDetails.timeStamp;
 
     // Get event datails?
@@ -212,7 +221,7 @@ function logOnHeadersReceived(eventDetails) {
 
     if (requestHandle === undefined) {
         // why are we here without a request for this requestId?
-        console.error("No request struct for id: " + eventDetails.requestId + " in lonOnHeadersReceived!!!");
+        console.error("No request struct for id: " + eventDetails.requestId + " in lonOnHeadersReceived.");
     }
     else {
         // Check if it got response from cache
@@ -253,7 +262,7 @@ function logOnBeforeRedirect(eventDetails) {
 
     if (requestHandle === undefined) {
         // why are we here without a request for this requestId?
-        console.error("No request struct for id: " + eventDetails.requestId + " in logOnBeforeRedirect!!!");
+        console.error("No request struct for id: " + eventDetails.requestId + " in logOnBeforeRedirect.");
     }
     else {
         requestHandle.requestStatus = "Redirected";
@@ -272,7 +281,7 @@ function logOnResponseStarted(eventDetails) {
     if (requestHandle === undefined) {
         // Should be an error
         // Even redirects get a new request id. 
-        console.error("No request struct for id: " + eventDetails.requestId + " in logOnResponseStarted!!!");
+        console.error("No request struct for id: " + eventDetails.requestId + " in logOnResponseStarted!");
     }
 
     // Get event datails?
@@ -288,10 +297,14 @@ async function logOnCompleted(eventDetails) {
     const requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
     if (requestHandle === undefined) {
         // why are we here without a request for this requestId?
-        console.error("No request for id: " + eventDetails.requestId + " in logOnCompleted!!!");
+        console.error("No request for id: " + eventDetails.requestId + " in logOnCompleted!");
     }
     else {
         requestHandle.completedTime = eventDetails.timeStamp;
+        // The New - Waiting statuses are going to help
+        // know which pages have received user selection. 
+        // for it is possible for the popup to go unanswered 
+        // and the user must be able to keep browsing. 
         if (requestHandle.statusCode === "New") {
             requestHandle.statusCode = "Waiting";
         }
@@ -320,7 +333,7 @@ async function logOnCompleted(eventDetails) {
                                 console.log("*****************");
                                 requestHandle.statusCode = "ChildSentReady";
                             }
-                            else{
+                            else {
                                 requestHandle.statusCode = "Remove";
                             }
                             break;
@@ -453,7 +466,14 @@ function handleStartup() {
    Send an init message to the app. */
 // Window
 function logCreatedTab(createdTab) {
-    // check operating system for native app
+ 
+
+}
+
+// On Installed
+browser.runtime.onInstalled.addListener(() => {
+    console.log("user_to_network running in background");
+       // check operating system for native app
     // we cannot make this synchronous so we are going to have to do everything inside
     // this function because we need the os info before we can call native app.
     browser.runtime.getPlatformInfo().then((info) => {
@@ -461,9 +481,8 @@ function logCreatedTab(createdTab) {
         os = info.os;
 
         if (DEBUG === "ON") {
-            console.log("Entrace to logCreatedTab");
+            console.log("Entrace to onInstalled");
             console.log(os);
-            console.log(createdTab);
         }
 
         // Check if output file exists if not create it
@@ -478,8 +497,7 @@ function logCreatedTab(createdTab) {
 
         callNative(message);
     });
-
-}
+});
 
 function callNative(message) {
     //  if (DEBUG === "ON") {
@@ -766,14 +784,6 @@ function deleteRequest(requestId) {
         result = requests.findIndex(({ id }) => id === requestId);
     }
 }
-// On Installed
-//browser.runtime.onInstalled.addListener(() => {
-//    browser.contextMenus.create({
-//        "id": "sampleContextMenu",
-//        "title": "Sample Context Menu",
-//        "contexts": ["selection"]
-//    });
-//});
 
 // Local Storage
 //set
