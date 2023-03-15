@@ -153,7 +153,7 @@ echo
 flatpak permission-set webextension Transport snap.firefox yes
 echo
 echo
-echo "Permissions set
+echo "Setting permission with Flatpak"
 echo
 
 # Install python 
@@ -248,6 +248,16 @@ if ! command -v web-ext &> /dev/null
 then
     echo "web-ext is not installed. Installing now..."
     # Install web-ext using npm
+    echo "Installing npm"
+    echo
+    echo
+    sudo apt install npm
+    echo "npm Installed"
+    echo
+    echo
+    echo "Installing web-ext with npm"
+    echo
+    echo
     sudo npm install --global web-ext
 else
     echo "web-ext is already installed."
@@ -265,7 +275,7 @@ cat /opt/firefox/user_to_network/user_to_network_Extension/Firefox
 echo
 cp /opt/firefox/user_to_network/user_to_network_Extension/Firefox ~/Desktop
 chmod 777 ~/Desktop/Firefox
-echo "copied Firefox to ~/Desktop
+echo "copied Firefox to ~/Desktop"
 echo
 echo
 
