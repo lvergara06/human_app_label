@@ -33,7 +33,6 @@ import os
 import os.path
 from os import path
 from time import sleep
-import requests
 import getopt
 
 linuxConfigFile = "/opt/firefox/user_to_network/user_to_network_NativeApp/Transport.conf" ## This file has the line arguments for linux
