@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 import sys
+import pytz
 
 ## Global Variables
 connectionsFile = ""
@@ -39,15 +40,29 @@ with open(connectionsFile, 'r') as source1,\
         flowSourcePort = splitFlow[2]
         flowDestinationPort = splitFlow[3]
         flowStartTime = splitFlow[5]
+        // Skip the header fields
+        if flowStartTime == "TIMESTAMP_START":
+            continue
         # This is an adjustment to get mountain to utc timestamp from pmacct
         # If your pmacct timestamps are in utc then you will have to remove this.
         try:
-            local_time = datetime.strptime(flowStartTime, "%Y-%m-%d %H:%M:%S.%f")
-        except: 
-            continue
+            # Convert the local time string to a datetime object
+            local_time = datetime.strptime(flowStartTime, "%Y-%m-%d %H:%M:%S.%f")
+
+            # Get the local timezone
+            local_tz = pytz.timezone('America/Denver')
+
+            # Localize the datetime object to the local timezone
+            localized_time = local_tz.localize(local_time, is_dst=None)
+
+            # Convert the localized datetime to UTC
+            utc_time = localized_time.astimezone(pytz.utc)
+
+            # Calculate the flowEpoch timestamp
+            flowEpoch = int((utc_time - datetime(1970, 1, 1, tzinfo=pytz.utc)).total_seconds() * 1000)
+        except Exception as e:
+            print(f"Error: {e}")
         
-        utc_time = local_time + timedelta(hours=7)
-        flowEpoch = int((utc_time - datetime(1970, 1, 1)).total_seconds()*1000)
         #print("flow:" + flowSourceIp + " " + flowDestinationIp + " " + flowSourcePort + " " + flowDestinationPort + " "  + str(flowEpoch) )
         source1.seek(0)
         connections = source1.readlines()

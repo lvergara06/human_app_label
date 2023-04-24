@@ -412,7 +412,7 @@ async function logOnCompleted(eventDetails) {
     }
 
     for (let rqst of requests) {
-        if (rqst.statusCode === "ChildSentReady" || rqst.statusCode === "HostSentReady") {
+        if (rqst.statusCode === "ChildSentReady") {
             message = {
                 state: state,
                 dataIn: [{
@@ -441,6 +441,9 @@ async function logOnCompleted(eventDetails) {
                 rqst.statusCode = "ExternalHost"
             }
         }
+        if (rqst.statusCode === "HostSentReady") {
+            rqst.statusCode = "Remove";
+        }
     }
     // Clean up
     for (let rqst of requests) {
@@ -466,14 +469,14 @@ function handleStartup() {
    Send an init message to the app. */
 // Window
 function logCreatedTab(createdTab) {
- 
+
 
 }
 
 // On Installed
 browser.runtime.onInstalled.addListener(() => {
     console.log("user_to_network running in background");
-       // check operating system for native app
+    // check operating system for native app
     // we cannot make this synchronous so we are going to have to do everything inside
     // this function because we need the os info before we can call native app.
     browser.runtime.getPlatformInfo().then((info) => {
@@ -611,27 +614,28 @@ browser.runtime.onMessage.addListener((msg) => {
         else {
             // This is the request for the get main_frame
             requestHandle.userSelection = msg.response;
-            message = {
-                state: state,
-                dataIn: [{
-                    tabId: requestHandle.tabId,
-                    destinationIp: requestHandle.destinationIp,
-                    destinationPort: requestHandle.destinationPort,
-                    userSelection: requestHandle.userSelection,
-                    epochTime: requestHandle.timeStamp,
-                    completedIp: requestHandle.completedIp,
-                    requestId: requestHandle.id,
-                    originalDestIp: requestHandle.originalDestIp,
-                    extendedData: requestHandle.extendedData,
-                    FirefoxPID: FirefoxPID,
-                    os: os
-                }],
-                dataOut: [],
-                optionsSendWith: optionsSendWith,
-                exitMessage: ""
-            };
-            callNative(message);
-
+            if (requestHandle.statusCode != "ExternalHost") {
+                message = {
+                    state: state,
+                    dataIn: [{
+                        tabId: requestHandle.tabId,
+                        destinationIp: requestHandle.destinationIp,
+                        destinationPort: requestHandle.destinationPort,
+                        userSelection: requestHandle.userSelection,
+                        epochTime: requestHandle.timeStamp,
+                        completedIp: requestHandle.completedIp,
+                        requestId: requestHandle.id,
+                        originalDestIp: requestHandle.originalDestIp,
+                        extendedData: requestHandle.extendedData,
+                        FirefoxPID: FirefoxPID,
+                        os: os
+                    }],
+                    dataOut: [],
+                    optionsSendWith: optionsSendWith,
+                    exitMessage: ""
+                };
+                callNative(message);
+            }
             // All other unprocessed requests
             for (let rqst of requests) {
                 if (rqst.statusCode === "Child" && rqst.host === requestHandle.host && rqst.tabId === requestHandle.tabId) {
@@ -655,7 +659,7 @@ browser.runtime.onMessage.addListener((msg) => {
                         optionsSendWith: optionsSendWith,
                         exitMessage: ""
                     };
-                    callNative(message);
+                    //callNative(message);
 
                     rqst.statusCode = "Remove";
                 }
@@ -685,9 +689,9 @@ browser.runtime.onMessage.addListener((msg) => {
                         optionsSendWith: optionsSendWith,
                         exitMessage: ""
                     };
-                    callNative(message);
+                    //callNative(message);
 
-                    rqst.statusCode = "ExternalHost";
+                    rqst.statusCode = "Remove";
                 }
             }
         }
