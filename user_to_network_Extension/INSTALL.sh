@@ -88,6 +88,8 @@ echo "Coping $HOME/user_to_network to /opt/firefox/user_to_network"
 echo
 echo
 sudo cp -r $HOME/user_to_network/* /opt/firefox/user_to_network
+sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/connectionsBkp
+sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/logs
 echo
 echo
 echo "User to network copied to /opt/firefox/user_to_network"

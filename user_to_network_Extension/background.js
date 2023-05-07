@@ -275,7 +275,7 @@ function logOnBeforeRedirect(eventDetails) {
 /* onResponseStarted
    Fired when the first byte of the response body is received. */
 function logOnResponseStarted(eventDetails) {
-    trace("BeforeRedirect", eventDetails);
+    trace("OnResponseStarted", eventDetails);
 
     requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
     if (requestHandle === undefined) {
