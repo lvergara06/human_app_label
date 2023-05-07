@@ -556,22 +556,60 @@ function onResponse(response) {
     }
 
     if (response.state === "add_connection") {
-        console.log("options sendwith is " + optionsSendWith);
-        if (response.dataOut.connections.length > 0) {
-            for (let connection of response.dataOut.connections) {
-                if (optionsSendWith === "Extension") {
-                    var request = new XMLHttpRequest();
-                    request.open("POST", CREATEAPIADDRESS);
-                    request.setRequestHeader("Content-Type", "application/json");
-                    request.overrideMimeType("text/plain");
-                    request.onload = function () {
-                        console.log("Response received: " + request.responseText);
-                    };
-                    console.log("connection :" + JSON.stringify(connection));
-                    request.send(JSON.stringify(connection));
+        // Try to find a connection again 
+        if( response.exitMessage === "connection to netstat connection not found"){
+            for(var i = 0; i < response.dataOut.length; i++) {
+                if (response.dataOut[i][0] === "ConnectionTry") {
+                    ConnectionTry = response.dataOut[i][1];
+                    if (ConnectionTry < 2)
+                    {
+                        message = {
+                            state: response.state,
+                            dataIn: [{
+                                tabId: response.dataIn[0].tabId,
+                                destinationIp: response.dataIn[0].destinationIp,
+                                destinationPort: response.dataIn[0].destinationPort,
+                                userSelection: response.dataIn[0].userSelection,
+                                epochTime: response.dataIn[0].epochTime,
+                                completedIp: response.dataIn[0].completedIp,
+                                requestId: response.dataIn[0].requestId,
+                                originalDestIp: response.dataIn[0].originalDestIp,
+                                extendedData: response.dataIn[0].extendedData,
+                                FirefoxPID: response.dataIn[0].FirefoxPID,
+                                os: response.dataIn[0].os,
+                                ConnectionTry : ConnectionTry
+                            }],
+                            dataOut: [],
+                            optionsSendWith: response.optionsSendWith,
+                            exitMessage: ""
+                        };
+                        callNative(message);
+                    }
+                    else {
+                        console.log("RequestId : " + response.dataIn[0].requestId + " netstat not found");
+                    }
                 }
-                else {
-                    console.log("connection :" + JSON.stringify(connection));
+            }
+        }
+
+        if( response.exitMessage === "Success"){
+            console.log("options sendwith is " + optionsSendWith);
+            if (response.dataOut.connections.length > 0) {
+                for (let connection of response.dataOut.connections) {
+                    if (optionsSendWith === "Extension") {
+                        var request = new XMLHttpRequest();
+                        request.open("POST", CREATEAPIADDRESS);
+                        request.setRequestHeader("Content-Type", "application/json");
+                        request.overrideMimeType("text/plain");
+                        request.onload = function () {
+                            console.log("Response received: " + request.responseText);
+                        };
+                        console.log("connection :" + JSON.stringify(connection));
+                        request.send(JSON.stringify(connection));
+                    }
+                    else {
+                        console.log("connection :" + JSON.stringify(connection));
+                    }
                 }
             }
         }
@@ -628,7 +666,8 @@ browser.runtime.onMessage.addListener((msg) => {
                         originalDestIp: requestHandle.originalDestIp,
                         extendedData: requestHandle.extendedData,
                         FirefoxPID: FirefoxPID,
-                        os: os
+                        os: os,
+                        ConnectionTry : 0
                     }],
                     dataOut: [],
                     optionsSendWith: optionsSendWith,

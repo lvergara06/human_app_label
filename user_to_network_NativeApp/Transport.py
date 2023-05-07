@@ -109,6 +109,7 @@ try:
             responseMessage['dataOut'].append(('jsonFile' , '/opt/firefox/user_to_network/user_to_network_NativeApp/connections.json'))
             responseMessage['dataOut'].append(('csvFile' , '/opt/firefox/user_to_network/user_to_network_NativeApp/connections.csv'))
             errorMsg += "Using default path json and csf files: /opt/firefox/user_to_network/user_to_network_NativeApp/."
+        
         # list of options tuple (opt, value)
         responseMessage['dataOut'].append(opts)
         
@@ -144,6 +145,9 @@ try:
         split = ' '.join(mainPID.split()).split(' ')        
         # Add the firefox main pid to the response
         responseMessage['dataOut'].append(("FirefoxPID", split[1]))
+
+        # Return a log file
+        responseMessage['dataOut'].append(("LogFile", "/opt/firefox/user_to_network/user_to_network_NativeApp/logs/Transport." + split[1] + ".log"))
         sendMessage(encodeMessage(responseMessage))
         
     #
@@ -157,9 +161,13 @@ try:
         responseMessage['dataIn'] = receivedMessage['dataIn']
         responseMessage['dataOut'] = []
         responseMessage['exitMessage'] = "Success"
+        ConnectionTry = receivedMessage['dataIn'][0]['ConnectionTry']
+        ConnectionTry += 1
         jsonFile = ""
         csvFile = ""
+        LogFile = "/opt/firefox/user_to_network/user_to_network_NativeApp/logs/Transport." + responseMessage['dataIn'][0]['FirefoxPID'] + ".log"
         extendData = False        
+        found = False
         
         # Get options
         responseMessage['exitMessage'] = getOptions(responseMessage); 
@@ -171,71 +179,93 @@ try:
             if o[0] == "-E":
                 extendData=True
 
-        #Run netstat 
-        # These areguments are based on ubuntu netstat
-        arguments = "-antp"
-        p = subprocess.Popen(["netstat", arguments], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-        out = p.stdout.read()
-        decodedNetstat = out.decode('ascii')
-        out_netstat = decodedNetstat.split('\n')
+        # Run this two times max because if the connection has not had time to be established I want to retry after a few secs
+        for i in range(2):
+            if found:
+                break
+            #Run netstat 
+            # These areguments are based on ubuntu netstat
+            arguments = "-antp"
+            p = subprocess.Popen(["netstat", arguments], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            out = p.stdout.read()
+            decodedNetstat = out.decode('ascii')
+            out_netstat = decodedNetstat.split('\n')
 
-        # Check if the json files already exist or not
-        answ = os.path.exists(jsonFile)
-        answ2 = os.path.exists(csvFile)
-        connectionEntry = {}
-        connectionEntry['connections'] = []
-        with open(jsonFile, 'a' if answ else 'w') as jsonF, \
-             open(csvFile , 'a' if answ2 else 'w') as csvF:
-            sys.stdout = jsonF
-            # Look for the connections per destinationIp and firefox pid
-            for line in out_netstat:
-                netstatLineSplit = ' '.join(line.split()).split(' ')
-                if len(netstatLineSplit) == 7 :  # Picks out the blanks
-                    netstatLineDestinationIP = netstatLineSplit[4].split(':')[0]
-                    netstatLineDestinationPort = netstatLineSplit[4].split(':')[1]
-                    netstatLinePID = netstatLineSplit[6].split('/')[0]
-                    netstatLineSourceIP = netstatLineSplit[3].split(':')[0]
-                    netstatLineSourcePort = netstatLineSplit[3].split(':')[1]
-                    netstatLineState = netstatLineSplit[5]
-                    
-                    if (len(receivedMessage['dataIn'][0]) > 0 and 
-                        netstatLineDestinationIP == receivedMessage['dataIn'][0]['destinationIp'] and 
-                        netstatLineDestinationPort == receivedMessage['dataIn'][0]['destinationPort'] and 
-                        netstatLinePID == responseMessage['dataIn'][0]['FirefoxPID']):
+            # Check if the json files already exist or not
+            answ = os.path.exists(jsonFile)
+            answ2 = os.path.exists(csvFile)
+            answ3 = os.path.exists(LogFile)
+            connectionEntry = {}
+            connectionEntry['connections'] = []
+            with open(jsonFile, 'a' if answ else 'w') as jsonF, \
+                open(csvFile , 'a' if answ2 else 'w') as csvF, \
+                open(LogFile, 'a' if answ3 else 'w') as logF:
+                # Look for the connections per destinationIp and firefox pid
+                sys.stdout = logF
+                print("Looking for ip address : [" + receivedMessage['dataIn'][0]['destinationIp'] + "] \
+                    on port : [" + receivedMessage['dataIn'][0]['destinationPort'] + "]")
+
+                for line in out_netstat:
+                    netstatLineSplit = ' '.join(line.split()).split(' ')
+                    if len(netstatLineSplit) == 7 :  # Picks out the blanks
+                        netstatLineDestinationIP = netstatLineSplit[4].split(':')[0]
+                        netstatLineDestinationPort = netstatLineSplit[4].split(':')[1]
+                        netstatLinePID = netstatLineSplit[6].split('/')[0]
+                        netstatLineSourceIP = netstatLineSplit[3].split(':')[0]
+                        netstatLineSourcePort = netstatLineSplit[3].split(':')[1]
+                        netstatLineState = netstatLineSplit[5]
                         
-                        connection = {}
-                        connection['protocol'] = netstatLineSplit[0]
-                        connection['sourceIp'] = netstatLineSourceIP
-                        connection['sourcePort'] = netstatLineSourcePort
-                        connection['destinationIp'] = netstatLineDestinationIP
-                        connection['destinationPort'] = netstatLineDestinationPort
-                        connection['status'] = netstatLineState
-                        connection['pid'] = netstatLinePID
-                        connection['userSelection'] = receivedMessage['dataIn'][0]['userSelection']
-                        connection['epochTime'] = receivedMessage['dataIn'][0]['epochTime']
-                        if extendData:
-                            connection['extendedData'] = receivedMessage['dataIn'][0]['extendedData']
-                        else:
-                            connection['extendedData'] = []
-                        connectionEntry['connections'].append(connection)
-                        json_object = json.dumps(connection, indent=4)
-                        # to json
-                        print(json_object)
-                        sys.stdout = csvF
-                        # to csv
-                        print(connection['protocol'] + "," +
-                              connection['sourceIp'] + "," +
-                              connection['sourcePort'] + "," +
-                              connection['destinationIp'] + "," +
-                              connection['destinationPort'] + "," +
-                              connection['status'] + "," +
-                              connection['pid'] + "," +
-                              connection['userSelection'] + "," +
-                              str(connection['epochTime']))
-                        sys.stdout = jsonF
-            sys.stdout = original_stdout # Reset the standard output to its original value
-        responseMessage['dataOut'] = connectionEntry
-        responseMessage['exitMessage'] = 'Success'         
+                        sys.stdout = logF
+                        print("checking in netstat : " + " ".join(str(x) for x in netstatLineSplit))
+                        
+                        if (len(receivedMessage['dataIn'][0]) > 0 and 
+                            netstatLineDestinationIP == receivedMessage['dataIn'][0]['destinationIp'] and 
+                            netstatLineDestinationPort == receivedMessage['dataIn'][0]['destinationPort'] and 
+                            netstatLinePID == responseMessage['dataIn'][0]['FirefoxPID']):
+                            
+                            print("Match found")
+                            found = True
+                            sys.stdout = jsonF
+                            connection = {}
+                            connection['protocol'] = netstatLineSplit[0]
+                            connection['sourceIp'] = netstatLineSourceIP
+                            connection['sourcePort'] = netstatLineSourcePort
+                            connection['destinationIp'] = netstatLineDestinationIP
+                            connection['destinationPort'] = netstatLineDestinationPort
+                            connection['status'] = netstatLineState
+                            connection['pid'] = netstatLinePID
+                            connection['userSelection'] = receivedMessage['dataIn'][0]['userSelection']
+                            connection['epochTime'] = receivedMessage['dataIn'][0]['epochTime']
+                            if extendData:
+                                connection['extendedData'] = receivedMessage['dataIn'][0]['extendedData']
+                            else:
+                                connection['extendedData'] = []
+                            connectionEntry['connections'].append(connection)
+                            json_object = json.dumps(connection, indent=4)
+                            # to json
+                            print(json_object)
+                            sys.stdout = csvF
+                            # to csv
+                            print(connection['protocol'] + "," +
+                                connection['sourceIp'] + "," +
+                                connection['sourcePort'] + "," +
+                                connection['destinationIp'] + "," +
+                                connection['destinationPort'] + "," +
+                                connection['status'] + "," +
+                                connection['pid'] + "," +
+                                connection['userSelection'] + "," +
+                                str(connection['epochTime']))
+                            sys.stdout = jsonF
+                sys.stdout = original_stdout # Reset the standard output to its original value
+                if found == False:
+                    sleep(30)
+        
+        if found == False:
+            responseMessage['exitMessage'] = 'connection to netstat connection not found'     
+            responseMessage['dataOut'].append(("ConnectionTry", ConnectionTry))    
+        else :
+            responseMessage['dataOut'] = connectionEntry
+            responseMessage['exitMessage'] = "Success"
         sendMessage(encodeMessage(responseMessage))
 
     # deleteTab - Delets the file for this tab
