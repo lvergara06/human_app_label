@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# This script creates everything off of HOME directory. Change this variable to install elsewhere.
-HOME=~
+# This script creates everything off of tmp directory.
+TMPDIR=/tmp
 
 echo "Installing git"
 echo
@@ -23,12 +23,12 @@ echo
 echo "Cloning user_to_network"
 echo
 echo
-if [ -d "$HOME/user_to_network" ]
+if [ -d "$TMPDIR/user_to_network" ]
 then
-    echo "Git repository user_to_network already exists at $HOME, skipping clone"
+    echo "Git repository user_to_network already exists at $TMPDIR, skipping clone"
 else
-    echo cloning user_to_network at $HOME/user_to_network
-    git clone https://github.com/lvergara06/user_to_network $HOME/user_to_network
+    echo cloning user_to_network at $TMPDIR/user_to_network
+    git clone https://github.com/lvergara06/user_to_network $TMPDIR/user_to_network
     echo cloned user_to_network done!
 fi
 echo
@@ -84,10 +84,10 @@ echo "/opt/firefox/user_to_network permisions changed"
 echo
 echo
 
-echo "Coping $HOME/user_to_network to /opt/firefox/user_to_network"
+echo "Coping $TMPDIR/user_to_network to /opt/firefox/user_to_network"
 echo
 echo
-sudo cp -r $HOME/user_to_network/* /opt/firefox/user_to_network
+sudo cp -r $TMPDIR/user_to_network/* /opt/firefox/user_to_network
 sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/connectionsBkp
 sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/logs
 echo
@@ -306,6 +306,32 @@ if ! which netstat >/dev/null; then
 else
   echo "netstat is already installed."
 fi
+
+# Clone user_to_network repository
+echo "Cloning pmacct"
+echo
+echo
+echo "Resolving dependencies"
+echo
+echo
+sudo apt-get install libpcap-dev pkg-config libtool autoconf automake make bash libstdc++-11-dev g++
+echo
+echo
+if [ -d "$TMPDIR/pmacct" ]
+then
+    echo "Git repository pmacct already exists at $TMPDIR, skipping clone"
+else
+    echo cloning pmacct at $TMPDIR/pmacct
+    git clone https://github.com/pmacct/pmacct.git $TMPDIR/pmacct
+    cd $TMPDIR/pmacct
+    sudo $TMPDIR/autogen.sh
+    sudo $TMPDIR/configure #check-out available configure knobs via ./configure --help
+    sudo $TMPDIR/make
+    sudo $TMPDIR/make install #with super-user permission
+    echo cloned pmacct done!
+fi
+echo
+echo
 
 echo
 echo

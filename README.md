@@ -1,55 +1,32 @@
-This extension communicates to a native native program to retrieve netstat information on given destination ip address taken from the GET requests of Firefox.
-The GET requests prompt the user a popup to select from options about how the user is using the website. 
-The user selection and netstat result is sent to a dedicated database.
-
-### Mac OS/Linux setup ###
-
-1. Check that the [file permissions](https://en.wikipedia.org/wiki/File_system_permissions) for "Transport.py" include the `execute` permission.
-2. Edit the "path" property of "Transport.json" to point to the location of "Transport.py" on your computer.
-2.1 NOTE: You must alter Trasnport.json before moving it to the location below. "path" must point to Transport.py 
-3. copy "Transport.json" to the correct location on your computer. See [App manifest location ](https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Native_manifests#Manifest_location) to find the correct location for your OS.
-
-For MacOS:
-
-For global visibility, store the manifest in:
-
-    /Library/Application Support/Mozilla/NativeMessagingHosts/Transport.json
-
-For per-user visibility, store the manifest in:
-
-    ~/Library/Application Support/Mozilla/NativeMessagingHosts/Transport.json
-
-For Linux:
-
-For global visibility, store the manifest in either:
-
-    /usr/lib/mozilla/native-messaging-hosts/Transport.json
-
-or:
-
-    /usr/lib64/mozilla/native-messaging-hosts/Transport.json
-
-For per-user visibility, store the manifest in:
-
-    ~/.mozilla/native-messaging-hosts/Transport.json
-
-### Windows setup ###
-
-1. Check you have Python installed, and that your system's PATH environment variable includes the path to Python.  See [Using Python on Windows](https://docs.python.org/2/using/windows.html). You'll need to restart the web browser after making this change, or the browser won't pick up the new environment variable.
-2. Edit the "path" property of "Transport.json" to point to the location of "Transport_win.bat" on your computer. Note that you'll need to escape the Windows directory separator, like this: `"path": "C:\\Users\\MDN\\native-messaging\\app\\Transport.bat"`.
-3. Edit "Transport_win.bat" to refer to the location of "Transport.py" on your computer.
-4. Add a registry key containing the path to "Transport.json" on your computer. See [App manifest location ](https://developer.mozilla.org/en-US/Add-ons/WebExtensions/Native_manifests#Manifest_location) to find details of the registry key to add.
-
-For global visibility, create a registry key with the following name:
-
-    HKEY_LOCAL_MACHINE\SOFTWARE\Mozilla\NativeMessagingHosts\Transport
-
-The key should have a single default value, which is the path to the manifest.
-
-For per-user visibility, create a registry key with the following name:
-
-    HKEY_CURRENT_USER\SOFTWARE\Mozilla\NativeMessagingHosts\Transport
-
-To assist in troubleshooting on Windows, there is a script called `check_config_win.py`. Running this from the command line should give you an idea of any problems
-
-Once the extension is running you should be able to open the log with Ctrl J, visit a website and see the response in console. 
+# This script creates everything off of /tmp directory.
+# It clones user_to_network and pmacct but cleans up after they are installed.
+## The INSTALL.sh file will do the following.
+1) Install Git on Ubuntu/Debian
+	1.1) Check if Git is installed
+2) Clone user_to_network repository
+3) Download Firefox Dev
+    3.1) Download the latest version of Firefox Developer Edition
+	3.2) Extract the downloaded archive
+    3.3) Move the extracted Firefox directory to the /opt directory
+    3.4) Create a symbolic link for the Firefox binary
+    3.5) Cleanup the downloaded archive
+4) Create a space for the app
+5) Add path to folder to Transport.json
+6) Create mozilla/native-messaging-hosts and copy json to it
+7) Install Flatpak
+	7.1) Check if Flatpak is installed
+8) Set permission with Flatpak
+9) Install python 
+	9.1) Check if Python is installed
+10) Install pip
+	10.1) Check if pip is installed
+11) Instal Node.js
+	11.1) Check if Node.js is installed
+12) Check if web-ext is installed
+    12.1) Install web-ext using npm
+13) Add path to the extension in Firefox script
+14) Install ClickScript to open firefox by double clicking the Firefox file from desktop
+15) Install netstat
+16) Clone pmacct repository
+	16.1) Resolve dependencies
+	16.2) Install pmacct
