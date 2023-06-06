@@ -90,6 +90,7 @@ echo
 sudo cp -r $TMPDIR/user_to_network/* /opt/firefox/user_to_network
 sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/connectionsBkp
 sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/logs
+sudo chmod -R 777 /opt/firefox/user_to_network
 echo
 echo
 echo "User to network copied to /opt/firefox/user_to_network"
@@ -317,10 +318,9 @@ echo
 sudo apt-get install libpcap-dev pkg-config libtool autoconf automake make bash libstdc++-11-dev g++
 echo
 echo
-if [ -d "$TMPDIR/pmacct" ]
-then
-    echo "Git repository pmacct already exists at $TMPDIR, skipping clone"
-else
+# Check if pmacctd is installed
+if ! command -v pmacctd &> /dev/null; then
+    echo "pmacctd is not installed. Installing..."
     echo cloning pmacct at $TMPDIR/pmacct
     git clone https://github.com/pmacct/pmacct.git $TMPDIR/pmacct
     cd $TMPDIR/pmacct
@@ -337,3 +337,19 @@ echo
 echo
 echo DONE!
 
+echo !!!!!!!!!!!!!!!!!!!!!!!!!
+echo !!!!!!!! READ ME !!!!!!!!
+echo !!!!!!!!!!!!!!!!!!!!!!!!!
+echo right click on the file called "Firefox" in your desktop
+echo click on "Properties"
+echo go to tab "Open With"
+echo in the list look for "Click-Script"
+echo click it to highlight it and then click the "Set as default" button
+echo ... 
+echo while you are at it you can change the picture too.
+echo click on the default picture and choose this path:
+echo /opt/firefox/user_to_network/user_to_network_Extension/default128.png
+echo and you are good to go! You can hit the x on the corner
+echo !!!!!!!!!!!!!!!!!!!!!!!!!
+echo !!!!!!!! READ ME !!!!!!!!
+echo !!!!!!!!!!!!!!!!!!!!!!!!!
