@@ -90,6 +90,7 @@ echo
 sudo cp -r $TMPDIR/user_to_network/* /opt/firefox/user_to_network
 sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/connectionsBkp
 sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/logs
+sudo chmod -R 777 /opt/firefox/user_to_network
 echo
 echo
 echo "User to network copied to /opt/firefox/user_to_network"
@@ -286,8 +287,21 @@ echo "Installing ClickScript to open firefox with double click"
 sudo cp /opt/firefox/user_to_network/user_to_network_Extension/ClickScript.desktop ~/.local/share/applications
 sudo chmod 777 ~/.local/share/applications/ClickScript.desktop
 echo
+# Set the ClickScript.desktop file as the default for ~/Desktop/Firefox
+echo "application/x-shellscript=ClickScript.desktop" >> ~/.local/share/applications/mimeapps.list
+# Update the database to reflect the changes
+update-desktop-database ~/.local/share/applications
+echo
 echo
 echo "ClickScript Installed"
+echo
+echo
+
+# Changing the picture for the Firefox icon
+echo "Adding icon to Firefox script"
+sudo gio set ~/Desktop/Firefox metadata::custom-icon file:///opt/firefox/user_to_network_Extension/default128.png
+echo
+echo "Icon changed"
 echo
 echo
 
@@ -317,18 +331,20 @@ echo
 sudo apt-get install libpcap-dev pkg-config libtool autoconf automake make bash libstdc++-11-dev g++
 echo
 echo
-if [ -d "$TMPDIR/pmacct" ]
-then
-    echo "Git repository pmacct already exists at $TMPDIR, skipping clone"
-else
+# Check if pmacctd is already installed
+if ! command -v pmacctd &> /dev/null; then
+    echo "pmacctd is not installed. Installing..."
     echo cloning pmacct at $TMPDIR/pmacct
     git clone https://github.com/pmacct/pmacct.git $TMPDIR/pmacct
     cd $TMPDIR/pmacct
-    sudo $TMPDIR/autogen.sh
-    sudo $TMPDIR/configure #check-out available configure knobs via ./configure --help
-    sudo $TMPDIR/make
-    sudo $TMPDIR/make install #with super-user permission
+    sudo $TMPDIR/pmacctd/autogen.sh
+    sudo $TMPDIR/pmacctd/configure #check-out available configure knobs via ./configure --help
+    sudo $TMPDIR/pmacctd/make
+    sudo $TMPDIR/pmacctd/make install #with super-user permission
     echo cloned pmacct done!
+else
+    echo "pmacctd is already installed!"
+    echo
 fi
 echo
 echo
