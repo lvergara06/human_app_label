@@ -337,10 +337,10 @@ if ! command -v pmacctd &> /dev/null; then
     echo cloning pmacct at $TMPDIR/pmacct
     git clone https://github.com/pmacct/pmacct.git $TMPDIR/pmacct
     cd $TMPDIR/pmacct
-    sudo $TMPDIR/pmacctd/autogen.sh
-    sudo $TMPDIR/pmacctd/configure #check-out available configure knobs via ./configure --help
-    sudo $TMPDIR/pmacctd/make
-    sudo $TMPDIR/pmacctd/make install #with super-user permission
+    sudo $TMPDIR/pmacct/autogen.sh
+    sudo $TMPDIR/pmacct/configure #check-out available configure knobs via ./configure --help
+    sudo $TMPDIR/pmacct/make
+    sudo $TMPDIR/pmacct/make install #with super-user permission
     echo cloned pmacct done!
 else
     echo "pmacctd is already installed!"
