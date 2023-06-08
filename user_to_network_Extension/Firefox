@@ -12,26 +12,28 @@ export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 
+echo "Do not close this window if you are using firefox!!!"
+echo "PLEASE LEAVE THIS WINDOW OPEN IT WILL CLOSE ON ITS OWN"
 # Run the web-ext tool with the Firefox Developer Edition
 web-ext run --firefox-binary "$firefox_dev_path" -s "$extension_path"
 
 wait
 # Start a delay before auto running merge.py 
-sleep 15
+#sleep 15
 
-connections_file="/opt/firefox/user_to_network/user_to_network_NativeApp/connections.csv"
-flows_file="/opt/firefox/user_to_network/user_to_network_NativeApp/flows.csv"
-output_dir="/opt/firefox/user_to_network/user_to_network_NativeApp/"
-output_file="$output_dir/merged_$(date +%Y-%m-%d_%H:%M:%S).csv"
-log_dir="/opt/firefox/user_to_network/user_to_network_NativeApp/logs"
-log_file="$log_dir/ClickScript_$(date +%Y-%m-%d_%H:%M:%S).log"
-bkp_dir="/opt/firefox/user_to_network/user_to_network_NativeApp/connectionsBkp"
-bkp_file="$bkp_dir/connections_$(date +%Y-%m-%d_%H:%M:%S).csv"
+#connections_file="/opt/firefox/user_to_network/user_to_network_NativeApp/connections.csv"
+#flows_file="/opt/firefox/user_to_network/user_to_network_NativeApp/flows.csv"
+#output_dir="/opt/firefox/user_to_network/user_to_network_NativeApp/"
+#output_file="$output_dir/merged_$(date +%Y-%m-%d_%H:%M:%S).csv"
+#log_dir="/opt/firefox/user_to_network/user_to_network_NativeApp/logs"
+#log_file="$log_dir/ClickScript_$(date +%Y-%m-%d_%H:%M:%S).log"
+#bkp_dir="/opt/firefox/user_to_network/user_to_network_NativeApp/connectionsBkp"
+#bkp_file="$bkp_dir/connections_$(date +%Y-%m-%d_%H:%M:%S).csv"
 
-if [[ -e $connections_file && -e $flows_file ]]; then
-    python mergy.py "$connections_file" "$flows_file" > "$output_file"
+#if [[ -e $connections_file && -e $flows_file ]]; then
+#    python mergy.py "$connections_file" "$flows_file" > "$output_file"
     # Save the connections.csv file
-    cp "$connectons_file" "$bkp_file"
-else
-    echo "Either $connections_file or $flows_file does not exist" >> "$log_file"
-fi
+#    cp "$connectons_file" "$bkp_file"
+#else
+#    echo "Either $connections_file or $flows_file does not exist" >> "$log_file"
+#fi

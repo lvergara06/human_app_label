@@ -41,10 +41,10 @@ echo
 if ! command -v firefox-developer-edition &> /dev/null
 then
     # Download the latest version of Firefox Developer Edition
-    wget -O firefox.tar.bz2 "https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64&lang=en-US"
+    wget -O firefox-developer-114.tar.bz2 'https://ftp.mozilla.org/pub/firefox/releases/114.0b9/linux-x86_64/en-US/firefox-114.0b9.tar.bz2'
 
     # Extract the downloaded archive
-    tar -xf firefox.tar.bz2
+    tar -xf firefox-developer-114.tar.bz2
 
     # Move the extracted Firefox directory to the /opt directory
     sudo mv firefox /opt/
@@ -339,8 +339,8 @@ if ! command -v pmacctd &> /dev/null; then
     cd $TMPDIR/pmacct
     sudo $TMPDIR/pmacct/autogen.sh
     sudo $TMPDIR/pmacct/configure #check-out available configure knobs via ./configure --help
-    sudo $TMPDIR/pmacct/make
-    sudo $TMPDIR/pmacct/make install #with super-user permission
+    sudo make
+    sudo make install #with super-user permission
     echo cloned pmacct done!
 else
     echo "pmacctd is already installed!"
