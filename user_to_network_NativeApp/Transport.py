@@ -309,7 +309,7 @@ try:
         os.makedirs(directory, exist_ok=True)
 
         # Generate the filename using the user and today's date
-        today = date.today().strftime("%Y-%m-%d")
+        today = datetime.date.today().strftime("%Y-%m-%d")
         filename = f"{directory}connectionslog_{today}_pid_{pid}.txt"
 
         # Check if the file already exists
