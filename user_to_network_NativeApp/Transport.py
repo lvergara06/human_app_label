@@ -7,15 +7,6 @@
 # For Windows the key should have a single (Default) value with a path to this app's json. ie. C:\Users\userid\path\to\Transport.json
 # For Linux make sure that Trasnport.py exists at /usr/{lib,lib64,share}/mozilla/native-messaging-hosts/Transport.json
 #
-# example json for windows
-#{
-#  "name": "Transport",
-#  "description": "Send transport layer information from firefox to database",
-#  "path": "C:\\Users\\userid\\path\\to\\Transport_win.bat",
-#  "type": "stdio",
-#  "allowed_extensions": [ "ping_pong@example.org" ]
-#}
-#
 # example json for linux
 #{
 #  "name": "Transport",
@@ -30,10 +21,9 @@ import json
 import struct
 import subprocess
 import os
-import os.path
-from os import path
 from time import sleep
 import getopt
+import datetime
 
 linuxConfigFile = "/opt/firefox/user_to_network/user_to_network_NativeApp/Transport.conf" ## This file has the line arguments for linux
 
@@ -61,60 +51,63 @@ try:
         sys.stdout.buffer.write(encodedMessage['content'])
         sys.stdout.buffer.flush()
         
-    def getOptions (responseMessage):
+    def getOptions(responseMessage):
         errorMsg = ""
-        original_stdout = sys.stdout
-        if path.exists(linuxConfigFile) != True:
+        linuxConfigFile = "/opt/firefox/user_to_network/user_to_network_NativeApp/Transport.conf"
+        defaultJsonFile = "/opt/firefox/user_to_network/user_to_network_NativeApp/connections.json"
+        defaultCsvFile = "/opt/firefox/user_to_network/user_to_network_NativeApp/connections.csv"
+        
+        if not path.exists(linuxConfigFile):
             # All defaults
-            responseMessage['dataOut'].append(('popupOption' , 'News'))
-            responseMessage['dataOut'].append(('popupOption' , 'Streaming'))
-            responseMessage['dataOut'].append(('popupOption' , 'Social Media'))
-            responseMessage['dataOut'].append(('popupOption' , 'Rather not say'))
-            responseMessage['dataOut'].append(('jsonFile' , '/opt/firefox/user_to_network/user_to_network_NativeApp/connections.json'))
-            responseMessage['dataOut'].append(('csvFile' , '/opt/firefox/user_to_network/user_to_network_NativeApp/connections.csv'))
-            return "File : " + linuxConfigFile + " not found. Using default /opt/firefox/user_to_network/user_to_netwok_NativeApp."
-        else:
-            errorMsg += " Configfile found!"
+            responseMessage['dataOut'].append(('popupOption', 'News'))
+            responseMessage['dataOut'].append(('popupOption', 'Streaming'))
+            responseMessage['dataOut'].append(('popupOption', 'Social Media'))
+            responseMessage['dataOut'].append(('popupOption', 'Rather not say'))
+            responseMessage['dataOut'].append(('jsonFile', defaultJsonFile))
+            responseMessage['dataOut'].append(('csvFile', defaultCsvFile))
+            
+            return "File: {} not found. Using default: {}".format(linuxConfigFile, defaultJsonFile)
+        else: 
+            errorMsg += " Config file found!"
             with open(linuxConfigFile, 'r') as f:
                 argv = f.readline().split()
-
 
         # Parse the arguments
         # -s : Send with - Default is to have the native app send the connections to the api via http post. Use -s if you want the browser to send it
         # -E : Extended information - Default is to only get the minimum amount of data from the extension. If you want all the request headers and response use -E 'All'
-        #-l for options
+        # -l : Options file
+        # -j : JSON file
+        # -c : CSV file
         opts, args = getopt.getopt(argv, 's:E:l:j:c:')
-        for o , a in opts:
+        for o, a in opts:
             if o == "-l":
-                if path.exists(a.strip('"')) != True:
-                    errorMsg += "Error: Could not find options file: " + a + ". "
+                if not path.exists(a.strip('"')):
+                    errorMsg += "Error: Could not find options file: {}. ".format(a)
                     # All defaults
-                    responseMessage['dataOut'].append(('popupOption' , 'News'))
-                    responseMessage['dataOut'].append(('popupOption' , 'Streaming'))
-                    responseMessage['dataOut'].append(('popupOption' , 'Social Media'))
-                    responseMessage['dataOut'].append(('popupOption' , 'Rather not say'))
+                    responseMessage['dataOut'].append(('popupOption', 'News'))
+                    responseMessage['dataOut'].append(('popupOption', 'Streaming'))
+                    responseMessage['dataOut'].append(('popupOption', 'Social Media'))
+                    responseMessage['dataOut'].append(('popupOption', 'Rather not say'))
                 else:
                     with open(a.strip('"'), 'r') as f:
                         data = f.readlines()
-                        for line in data:        
-                            responseMessage['dataOut'].append(('popupOption' , line.strip('\n')))
+                        for line in data:
+                            responseMessage['dataOut'].append(('popupOption', line.strip('\n')))
             if o == "-j":
                 responseMessage['dataOut'].append(('jsonFile', a))
             if o == "-c":
                 responseMessage['dataOut'].append(('csvFile', a))
-                    
-        if (any('jsonFile' in i for i in responseMessage['dataOut'])):
-            pass
-        else:
-            responseMessage['dataOut'].append(('jsonFile' , '/opt/firefox/user_to_network/user_to_network_NativeApp/connections.json'))
-            responseMessage['dataOut'].append(('csvFile' , '/opt/firefox/user_to_network/user_to_network_NativeApp/connections.csv'))
-            errorMsg += "Using default path json and csf files: /opt/firefox/user_to_network/user_to_network_NativeApp/."
-        
+
+        if not any('jsonFile' in i for i in responseMessage['dataOut']):
+            responseMessage['dataOut'].append(('jsonFile', defaultJsonFile))
+            responseMessage['dataOut'].append(('csvFile', defaultCsvFile))
+            errorMsg += "Using default path for JSON and CSV files: {}.".format(defaultJsonFile)
+
         # list of options tuple (opt, value)
         responseMessage['dataOut'].append(opts)
-        
+
         return errorMsg
-            
+
     #
     # session_start - Creates a file to store the connections for this tab and get options
     #
@@ -233,6 +226,8 @@ try:
                              netstatLineState == "TIME_WAIT")):
                             print("Match found")
                             found = True
+                            utc_time = datetime.datetime.utcfromtimestamp(receivedMessage['dataIn'][0]['epochTime']/1000.0)
+                            utcRead = utc_time.strftime('%Y-%m-%d %H:%M:%S')
                             sys.stdout = jsonF
                             connection = {}
                             connection['protocol'] = netstatLineSplit[0]
@@ -244,6 +239,8 @@ try:
                             connection['pid'] = netstatLinePID
                             connection['userSelection'] = receivedMessage['dataIn'][0]['userSelection']
                             connection['epochTime'] = receivedMessage['dataIn'][0]['epochTime']
+                            connection['utcTime'] = utcRead
+                            connection['originUrl'] = '' if receivedMessage['dataIn'][0]['originUrl'] is None else receivedMessage['dataIn'][0]['originUrl']
                             if extendData:
                                 connection['extendedData'] = receivedMessage['dataIn'][0]['extendedData']
                             else:
@@ -262,7 +259,9 @@ try:
                                 connection['status'] + "," +
                                 connection['pid'] + "," +
                                 connection['userSelection'] + "," +
-                                str(connection['epochTime']))
+                                str(connection['epochTime']) + "," +
+                                utcRead + "," +
+                                connection['originUrl'])
                             sys.stdout = jsonF
                 sys.stdout = original_stdout # Reset the standard output to its original value
                 if found == False:
@@ -295,7 +294,35 @@ try:
         
         responseMessage['exitMessage'] = "Success"              
         sendMessage(encodeMessage(responseMessage))
-            
+
+    # logConnection - This rights out the request from browser
+    # Inputs: Request
+    def write_data_to_file(receivedMessage):
+        original_stdout = sys.stdout # Save a reference to the original standard output
+        responseMessage = {}
+        responseMessage['state'] = receivedMessage['state']
+        responseMessage['dataIn'] = receivedMessage['dataIn']
+        responseMessage['dataOut'] = []
+        responseMessage['exitMessage'] = "Success"
+        pid = receivedMessage['dataIn'][0]['FirefoxPID']
+        # Create the directory path
+        directory = '/opt/firefox/user_to_network/user_to_network_NativeApp/allConnections/'
+        os.makedirs(directory, exist_ok=True)
+
+        # Generate the filename using the user and today's date
+        today = date.today().strftime("%Y-%m-%d")
+        filename = f"{directory}connectionslog_{today}_pid_{pid}.txt"
+
+        # Check if the file already exists
+        file_exists = os.path.isfile(filename)
+
+        # Open the file in append mode if it exists, otherwise in write mode
+        mode = 'a' if file_exists else 'w'
+        with open(filename, mode) as file:
+            # Write the dataIn to the file
+            json.dump(receivedMessage["dataIn"], file)
+            file.write('\n')       
+
     while True:
         receivedMessage = getMessage()
 
@@ -307,8 +334,8 @@ try:
             addConnection(receivedMessage);
         elif receivedMessage['state'] == "delete_tab":
             deleteTab(receivedMessage);
-        
-        
+        elif receivedMessage['state'] == "logConnection":
+            write_data_to_file(receivedMessage);
 except AttributeError:
     # Python 2.x version (if sys.stdin.buffer is not defined)
     # Read a message from stdin and decode it.
