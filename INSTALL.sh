@@ -33,10 +33,18 @@ else
 fi
 
 # Download Firefox Dev
-firefox_path="/opt/firefox/firefox"
+echo Downloading Firefox Dev
+echo
+echo
+# Path to the Firefox executable
+firefox_path=/opt/firefox/firefox
+
+# Check the version
 version=$(firefox_path --version | awk '{print $3}')
 
-if [[ "$version" == "114.0" ]]; then
+# Compare the version
+if [[ "$version" == "114.0" ]]
+then
     echo "Firefox version 114.0 already installed"
 else
     echo "Downloading Firefox Dev"
