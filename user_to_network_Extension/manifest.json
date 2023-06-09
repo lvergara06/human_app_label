@@ -1,6 +1,6 @@
 {
   "manifest_version": 2,
-  "name": "Protoype",
+  "name": "user_to_network",
   "version": "1.0",
 
   "background": {

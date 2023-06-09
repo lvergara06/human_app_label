@@ -41,10 +41,10 @@ echo
 if ! command -v firefox-developer-edition &> /dev/null
 then
     # Download the latest version of Firefox Developer Edition
-    wget -O firefox.tar.bz2 "https://download.mozilla.org/?product=firefox-devedition-latest-ssl&os=linux64&lang=en-US"
+    wget -O firefox-developer-114.tar.bz2 'https://ftp.mozilla.org/pub/firefox/releases/114.0b9/linux-x86_64/en-US/firefox-114.0b9.tar.bz2'
 
     # Extract the downloaded archive
-    tar -xf firefox.tar.bz2
+    tar -xf firefox-developer-114.tar.bz2
 
     # Move the extracted Firefox directory to the /opt directory
     sudo mv firefox /opt/
@@ -76,6 +76,14 @@ echo "App Space Created"
 echo
 echo
 
+echo "Coping $TMPDIR/user_to_network to /opt/firefox/user_to_network"
+echo
+echo
+sudo cp -r $TMPDIR/user_to_network/* /opt/firefox/user_to_network
+sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/connectionsBkp
+sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/logs
+echo
+echo
 echo "Giving /opt/firefox/user_to_network permissions"
 echo
 echo
@@ -83,28 +91,16 @@ sudo chmod -R 777 /opt/firefox/user_to_network
 echo "/opt/firefox/user_to_network permisions changed"
 echo
 echo
-
-echo "Coping $TMPDIR/user_to_network to /opt/firefox/user_to_network"
-echo
-echo
-sudo cp -r $TMPDIR/user_to_network/* /opt/firefox/user_to_network
-sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/connectionsBkp
-sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/logs
-sudo chmod -R 777 /opt/firefox/user_to_network
 echo
 echo
 echo "User to network copied to /opt/firefox/user_to_network"
 echo
 echo
-
-# Change the path to the app in Transport.json
-echo "Change path in Transport.json"
+echo "Removing user_to_network from $TMPDIR"
 echo
 echo
-echo path to app is /opt/firefox/user_to_network/user_to_network_NativeApp/Transport.py
+sudo rm -rf $TMPDIR/user_to_network
 echo
-echo
-sudo sed -i "s|PATHTOJSON|/opt/firefox/user_to_network/user_to_network_NativeApp/Transport.py|g" /opt/firefox/user_to_network/user_to_network_NativeApp/Transport.json
 echo
 echo
 echo Transport.json is
@@ -113,7 +109,7 @@ echo
 echo
 
 # Create mozilla directory and copy json to it
-echo "Creating mozilla directory"
+echo "Creating mozilla native messaging directory"
 echo
 echo
 if [ -d "~/.mozilla/native-messaging-hosts" ]
@@ -268,27 +264,19 @@ fi
 echo
 echo
 
-# Change the path to the extension in Firefox
-echo path to extension is /opt/firefox/user_to_network/user_to_network_Extension
+# Install firefox_user_to_network in the apps menu and add it to favorites
+echo "Installing firefox_user_to_network to the apps menu"
+sudo cp /opt/firefox/user_to_network/user_to_network_Extension/firefox_user_to_network.desktop ~/.local/share/applications
+sudo chmod 777 ~/.local/share/applications/firefox_user_to_network.desktop
 echo
+# Adding firefox_user_to_network to the favorites dock
+echo "Adding firefox_user_to_network to favorites"
+sudo gsettings set org.gnome.shell favorite-apps "$(gsettings get org.gnome.shell favorite-apps | sed "s/]/, 'firefox_user_to_network.desktop']/")"
 echo
-sudo sed -i "s|PATHTOEXTENSION|/opt/firefox/user_to_network/user_to_network_Extension|g" /opt/firefox/user_to_network/user_to_network_Extension/Firefox
-echo Firefox Script is
-cat /opt/firefox/user_to_network/user_to_network_Extension/Firefox
+echo "Removing regular firefox from favorites"
+sudo gsettings set org.gnome.shell favorite-apps "$(gsettings get org.gnome.shell favorite-apps | sed "s|, 'firefox_firefox.desktop'||" | sed "s|'firefox_firefox.desktop', ||" | sed "s|'firefox_firefox.desktop' ||" | sed "s|'firefox_firefox.desktop']|]|")"
 echo
-cp /opt/firefox/user_to_network/user_to_network_Extension/Firefox ~/Desktop
-chmod 777 ~/Desktop/Firefox
-echo "copied Firefox to ~/Desktop"
-echo
-echo
-
-# Install ClickScript to open firefox by double clicking the Firefox file from desktop
-echo "Installing ClickScript to open firefox with double click"
-sudo cp /opt/firefox/user_to_network/user_to_network_Extension/ClickScript.desktop ~/.local/share/applications
-sudo chmod 777 ~/.local/share/applications/ClickScript.desktop
-echo
-echo
-echo "ClickScript Installed"
+echo "firefox_user_to_network Installed"
 echo
 echo
 
@@ -318,17 +306,20 @@ echo
 sudo apt-get install libpcap-dev pkg-config libtool autoconf automake make bash libstdc++-11-dev g++
 echo
 echo
-# Check if pmacctd is installed
+# Check if pmacctd is already installed
 if ! command -v pmacctd &> /dev/null; then
     echo "pmacctd is not installed. Installing..."
     echo cloning pmacct at $TMPDIR/pmacct
     git clone https://github.com/pmacct/pmacct.git $TMPDIR/pmacct
     cd $TMPDIR/pmacct
-    sudo $TMPDIR/autogen.sh
-    sudo $TMPDIR/configure #check-out available configure knobs via ./configure --help
-    sudo $TMPDIR/make
-    sudo $TMPDIR/make install #with super-user permission
+    sudo $TMPDIR/pmacct/autogen.sh
+    sudo $TMPDIR/pmacct/configure #check-out available configure knobs via ./configure --help
+    sudo make
+    sudo make install #with super-user permission
     echo cloned pmacct done!
+else
+    echo "pmacctd is already installed!"
+    echo
 fi
 echo
 echo
@@ -336,20 +327,3 @@ echo
 echo
 echo
 echo DONE!
-
-echo !!!!!!!!!!!!!!!!!!!!!!!!!
-echo !!!!!!!! READ ME !!!!!!!!
-echo !!!!!!!!!!!!!!!!!!!!!!!!!
-echo right click on the file called "Firefox" in your desktop
-echo click on "Properties"
-echo go to tab "Open With"
-echo in the list look for "Click-Script"
-echo click it to highlight it and then click the "Set as default" button
-echo ... 
-echo while you are at it you can change the picture too.
-echo click on the default picture and choose this path:
-echo /opt/firefox/user_to_network/user_to_network_Extension/default128.png
-echo and you are good to go! You can hit the x on the corner
-echo !!!!!!!!!!!!!!!!!!!!!!!!!
-echo !!!!!!!! READ ME !!!!!!!!
-echo !!!!!!!!!!!!!!!!!!!!!!!!!

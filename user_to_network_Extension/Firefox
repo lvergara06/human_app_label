@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Set the path to the extension
-extension_path="PATHTOEXTENSION"
+extension_path="/opt/firefox/user_to_network/user_to_network_Extension"
 
 # Set the path to the Firefox Developer Edition executable
 firefox_dev_path="/opt/firefox/firefox"
@@ -15,23 +15,23 @@ export NVM_DIR="$HOME/.nvm"
 # Run the web-ext tool with the Firefox Developer Edition
 web-ext run --firefox-binary "$firefox_dev_path" -s "$extension_path"
 
-wait
-# Start a delay before auto running merge.py 
-sleep 15
+# wait
+# # Start a delay before auto running merge.py 
+# sleep 15
 
-connections_file="/opt/firefox/user_to_network/user_to_network_NativeApp/connections.csv"
-flows_file="/opt/firefox/user_to_network/user_to_network_NativeApp/flows.csv"
-output_dir="/opt/firefox/user_to_network/user_to_network_NativeApp/"
-output_file="$output_dir/merged_$(date +%Y-%m-%d_%H:%M:%S).csv"
-log_dir="/opt/firefox/user_to_network/user_to_network_NativeApp/logs"
-log_file="$log_dir/ClickScript_$(date +%Y-%m-%d_%H:%M:%S).log"
-bkp_dir="/opt/firefox/user_to_network/user_to_network_NativeApp/connectionsBkp"
-bkp_file="$bkp_dir/connections_$(date +%Y-%m-%d_%H:%M:%S).csv"
+# connections_file="/opt/firefox/user_to_network/user_to_network_NativeApp/connections.csv"
+# flows_file="/opt/firefox/user_to_network/user_to_network_NativeApp/flows.csv"
+# output_dir="/opt/firefox/user_to_network/user_to_network_NativeApp/"
+# output_file="$output_dir/merged_$(date +%Y-%m-%d_%H:%M:%S).csv"
+# log_dir="/opt/firefox/user_to_network/user_to_network_NativeApp/logs"
+# log_file="$log_dir/ClickScript_$(date +%Y-%m-%d_%H:%M:%S).log"
+# bkp_dir="/opt/firefox/user_to_network/user_to_network_NativeApp/connectionsBkp"
+# bkp_file="$bkp_dir/connections_$(date +%Y-%m-%d_%H:%M:%S).csv"
 
-if [[ -e $connections_file && -e $flows_file ]]; then
-    python mergy.py "$connections_file" "$flows_file" > "$output_file"
-    # Save the connections.csv file
-    cp "$connectons_file" "$bkp_file"
-else
-    echo "Either $connections_file or $flows_file does not exist" >> "$log_file"
-fi
+# if [[ -e $connections_file && -e $flows_file ]]; then
+#     python mergy.py "$connections_file" "$flows_file" > "$output_file"
+#     # Save the connections.csv file
+#     cp "$connectons_file" "$bkp_file"
+# else
+#     echo "Either $connections_file or $flows_file does not exist" >> "$log_file"
+# fi

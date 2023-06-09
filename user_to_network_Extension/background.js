@@ -6,6 +6,9 @@
  *     This extension extends the various APIs provided by Firefox
  *     on the different events of a request. Each event is analized
  *     for important information on the request or response headers. 
+ * 20230605 - Luis Vergara - Refactored
+ *                           Let write out all of the connections 
+ *                           And keep all of the matching logic out.
  ****************************************************************/
 
 
@@ -76,9 +79,8 @@ function logOnBeforeRequest(eventDetails) {
             requestStatus: "",
             extendedData: [],
             statusCode: "New",
-            originalUrl: undefined,
             userSelection: undefined,
-            originUrl: undefined,
+            originUrl: eventDetails.originUrl,
             completedTime: undefined
         };
         requests.push(newRequest);
@@ -303,123 +305,25 @@ async function logOnCompleted(eventDetails) {
     }
     else {
         requestHandle.completedTime = eventDetails.timeStamp;
-        // The New to Waiting statuses are going to help
-        // know which pages have received user selection. 
-        // for it is possible for the popup to go unanswered 
-        // and the user must be able to keep browsing. 
-        if (requestHandle.statusCode === "New") {
-            requestHandle.statusCode = "Waiting";
-        }
-
-        // If the ip is null get it from destinationIp
-        // This watches out for cases when requested ip could be different
-        // than the final ip. If that is a thing.
-        if (eventDetails.ip != null) {
-            requestHandle.completedIp = eventDetails.ip;
-        }
-        else {
-            requestHandle.completedIp = requestHandle.destinationIp;
-        }
-
-        // For all connections that are not get main_frame.
-        if (!(eventDetails.method.toLowerCase() === "get" && eventDetails.type.toLowerCase() === "main_frame")) {
-                // A non get main_frame connection could be matched to a user selection
-                // if the connection that started it has a user selection. 
-            if (requestHandle.userSelection === undefined) {
-                    // Let's check if this host has a user selection from a get main_frame request. 
-                    // Look at all of the hosts in our requests list for a match
-                    // on this request's host.
-                for (let referenceRequestHandle of requests.filter(({ host }) => host === requestHandle.host)) {
-                        // If there is another entry in the requests list for this host
-                    if (referenceRequestHandle.id != requestHandle.id && referenceRequestHandle.tabId === requestHandle.tabId) {
-                            // If that other entry has a user selection
-                        if (referenceRequestHandle.userSelection != undefined) {
-                                // Let's copy the user selection to our request
-                            requestHandle.userSelection = referenceRequestHandle.userSelection;
-                                // NOTE: Persistent status refers to a connection that is made to the host
-                                // to request all the content that is needed in one connection.
-                                // Non-persistent status refers to a connection that creates a new connection
-                                // for each of the items it needs from the host.
-                            if (requestHandle.persistent != "true") {
-                                // In here we have a connection likely as a result
-                                // of a  non-persistent get main_frame connection.
-                                
-                                // This connection will be logged as a child to a "parent" 
-                                // connetion: the actual get main_frame connection that started it.
-                                console.log("*****************");
-                                console.log("NON-PERSISTENT request id : " + requestHandle.id);
-                                console.log("*****************");
-                                // ChildSentReady status is so that we can log this connection
-                                // in our connections file as a child to a non-persistent 
-                                // get main_frame connection. 
-                                requestHandle.statusCode = "ChildSentReady";
-                            }
-                            else {
-                                // If this is not a connection from a non-persistent parent
-                                // let's remove it from our requests list and forget it
-                                requestHandle.statusCode = "Remove";
-                            }
-                            break;
-                        }
-                        else if (referenceRequestHandle.userSelection === undefined) {
-                                // This is the same as above but in this case
-                                // if don't find a user selection for the parent
-                                // then we mark the status as Child to remember
-                                // that once the parent gets the selection 
-                                // then this one should also get it. 
-                            if (requestHandle.persistent != "true") {
-                                requestHandle.statusCode = "Child";
-                            }
-                            else {
-                                requestHandle.statusCode = "Remove";
-                            }
-                        }
-                    }
-                }
-            }
-
-                // Different hosts
-                // This connection is not get main_frame and is not the child of a get main_frame connection
-                // It might be a new host that is fired off independently. 
-                // The originUrl can tell use which host triggered this connection, which might or might not be
-                // a get main_frame url.
-            if (requestHandle.userSelection === undefined && requestHandle.statusCode === "Waiting" && eventDetails.originUrl != null) {
-                requestHandle.originUrl = eventDetails.originUrl;
-                console.log("*****************");
-                console.log("Different host request id : " + requestHandle.id + ", host: " + requestHandle.host);
-                console.log("*****************");
-
-                    // Let's look for the origin url in our requests to see what infor we can find
-                for (let referenceRequestHandle of requests.filter(({ url }) => url === requestHandle.originUrl)) {
-                    if (referenceRequestHandle.id != requestHandle.id && referenceRequestHandle.tabId === requestHandle.tabId) {
-                        if (referenceRequestHandle.userSelection != undefined) {
-                                // What we have here is an external host triggered
-                                // by one other host that does have a user selection.
-                                // We can log this as having the same user selection.
-                            requestHandle.userSelection = referenceRequestHandle.userSelection;
-                                // HoseSentReady: Different host with a user selection from the origin url
-                                // ready to be written out to file.
-                            requestHandle.statusCode = "HostSentReady";
-                            break;
-                        }
-                        else if (referenceRequestHandle.userSelection === undefined) {
-                                // Orphaned host -- which we can adopt once the origin url
-                                // receives a user selection.
-                            requestHandle.statusCode = "Orphaned";
-                        }
-                    }
-                }
-
-            }
-        }
-            // Now let's take a look at get main_frames which are our target connections.
-        else if (eventDetails.method.toLowerCase() === "get" && eventDetails.type.toLowerCase() === "main_frame") {
+        // Let's log this
+        requestHandle.FirefoxPID = FirefoxPID;
+        message = {
+            state: "logConnection",
+            dataIn: [
+                requestHandle
+            ],
+            dataOut: [],
+            optionsSendWith: optionsSendWith,
+            exitMessage: ""   
+        }   
+        callNative(message);
+        if (eventDetails.method.toLowerCase() === "get" && eventDetails.type.toLowerCase() === "main_frame") {
             requestHandle.statusCode = "GetMain";
             // Call pop up
             try {
                     // pop up basics:
                     // the title of the pop up contains the request id in betwen % signs.
-                    // Whenever the user selects somethings on the pop up we can 
+                    // Whenever the user selects something on the pop up we can 
                     // retrieve the request id from its titile.
                 browser.windows.create({
                     type: "popup", url: "/popup.html",
@@ -431,80 +335,9 @@ async function logOnCompleted(eventDetails) {
                 console.log("Creating popup failed");
                 console.error(err);
             }
-
-            // Check for dupe get main_frame
-            // destroy duplicate requests. LILO - Last In Last Out
-            duplicate = requests.find(({ url }) => url === requestHandle.url);
-            if (duplicate === undefined) {
-                // This is bad because it should at least find itself in here.
-                console.error("GET Main_Frame request url : " + requestHandle.url + " does not exist in delete dupes in onCompleted!")
-            }
-
-            while (duplicate != undefined) {
-                if (duplicate.id != requestHandle.id) {
-                    // Delete dupe
-                    console.log("deleted dupe: rqst id : " + duplicate.id);
-                    dupeIndex = requests.findIndex(({ id }) => id === duplicate.id);
-                    requests.splice(dupeIndex, 1);
-                    duplicate = requests.find(({ url }) => url === requestHandle.url);
-                }
-                else {
-                    // Itself. Break while
-                    break;
-                }
-            }
         }
     }
 
-        // This is the for loop to process the connections.
-        // Connections that were waiting for parent to get a user selection?
-        // Maybe this connection does have a user selection already.
-        // Let's loop our requests list to see what can be written out.
-        // We enter this loop every single time the browser completes a 
-        // request. That means we do this a lot.
-    for (let rqst of requests) {
-            // Starting off with children that are ready to file
-            // Or host's that were triggered that we are ready to file
-        if (rqst.statusCode === "ChildSentReady" || rqst.statusCode === "HostSentReady") {
-            message = {
-                state: state,
-                dataIn: [{
-                    tabId: rqst.tabId,
-                    destinationIp: rqst.destinationIp,
-                    destinationPort: rqst.destinationPort,
-                    userSelection: rqst.userSelection,
-                    epochTime: rqst.timeStamp,
-                    completedIp: rqst.completedIp,
-                    requestId: rqst.id,
-                    originalDestIp: rqst.originalDestIp,
-                    extendedData: rqst.extendedData,
-                    FirefoxPID: FirefoxPID,
-                    os: os
-                }],
-                dataOut: [],
-                optionsSendWith: optionsSendWith,
-                exitMessage: ""
-            };
-                // We are shutting this down to start off light // UNCOMMENT below for extra connections
-            //callNative(message);
-
-            if (rqst.statusCode === "ChildSentReady") {
-                    // Child connections can be removed after we write them out. 
-                rqst.statusCode = "Remove";
-            }
-            else {
-                    // Triggered hosts are kept in the requests list
-                    // because they might be a parent to other connections later on.
-                rqst.statusCode = "ExternalHost"
-            }
-        }
-    }
-    // Clean up
-    for (let rqst of requests) {
-        if (rqst.statusCode === "Remove") {
-            deleteRequest(rqst.id);
-        }
-    }
     // Get event details?
     logEvent("Completed", eventDetails, requestHandle);
 }
@@ -724,78 +557,14 @@ browser.runtime.onMessage.addListener((msg) => {
                         extendedData: requestHandle.extendedData,
                         FirefoxPID: FirefoxPID,
                         os: os,
-                        ConnectionTry : 0
+                        ConnectionTry : 0,
+                        originUrl : typeof requestHandle.originUrl === 'undefined'? '': requestHandle.originUrl
                     }],
                     dataOut: [],
                     optionsSendWith: optionsSendWith,
                     exitMessage: ""
                 };
                 callNative(message);
-            }
-
-            // This would be a good place to update child and external hosts with 
-            // this user selection.
-            for (let rqst of requests) {
-                if (rqst.statusCode === "Child" && rqst.host === requestHandle.host && rqst.tabId === requestHandle.tabId) {
-                    rqst.userSelection = msg.response;
-                    message = {
-                        state: state,
-                        dataIn: [{
-                            tabId: rqst.tabId,
-                            destinationIp: rqst.destinationIp,
-                            destinationPort: rqst.destinationPort,
-                            userSelection: rqst.userSelection,
-                            epochTime: rqst.timeStamp,
-                            completedIp: rqst.completedIp,
-                            requestId: rqst.id,
-                            originalDestIp: rqst.originalDestIp,
-                            extendedData: rqst.extendedData,
-                            FirefoxPID: FirefoxPID,
-                            os: os
-                        }],
-                        dataOut: [],
-                        optionsSendWith: optionsSendWith,
-                        exitMessage: ""
-                    };
-                    // We are commenting this out // UNCOMMENT BELOW FOR EXTRA CONNECTIONS
-                    //callNative(message);
-
-                    rqst.statusCode = "Remove";
-                }
-                    // Remember that orphaned connections are external hosts that were triggered
-                    // by some other connection. We can check if this user selection can be given
-                    // to any of them.
-                else if (rqst.statusCode === "Orphaned" && rqst.originUrl === requestHandle.url && rqst.tabId === requestHandle.tabId) {
-                    console.log("*****************");
-                    console.log("Other HOST request id : " + rqst.id);
-                    console.log("*****************");
-                    rqst.userSelection = requestHandle.userSelection;
-                    message = {
-                        state: state,
-                        dataIn: [{
-                            tabId: rqst.tabId,
-                            destinationIp: rqst.destinationIp,
-                            destinationPort: rqst.destinationPort,
-                            userSelection: rqst.userSelection,
-                            epochTime: rqst.timeStamp,
-                            completedIp: rqst.completedIp,
-                            requestId: rqst.id,
-                            originalDestIp: rqst.originalDestIp,
-                            extendedData: rqst.extendedData,
-                            FirefoxPID: FirefoxPID,
-                            os: os
-                        }],
-                        dataOut: [],
-                        optionsSendWith: optionsSendWith,
-                        exitMessage: ""
-                    };
-                    // We are commenting this out // UNCOMMENT BELOW FOR EXTRA CONNECTIONS
-                    //callNative(message);
-                    // You don't want to remove and external host because it might be needed for its children if any
-                    // UNCOMMENT BELOW FOR EXTRA CONNECTIONS
-                    //rqst.statusCode = "ExternalHost";
-                    rqst.statusCode = "Remove";
-                }
             }
         }
         return Promise.resolve(true);

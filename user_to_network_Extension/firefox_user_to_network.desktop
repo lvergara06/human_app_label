@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Name=Firefox
+Comment=Firefox with User to Network Extension
+Exec=/opt/firefox/user_to_network/user_to_network_Extension/Firefox
+Icon=/opt/firefox/user_to_network/user_to_network_Extension/default128.png
+Terminal=false
+Type=Application
+Categories=Network;WebBrowser;
+StartupWMClass=Firefox
