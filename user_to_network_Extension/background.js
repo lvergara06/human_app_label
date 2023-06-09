@@ -117,10 +117,12 @@ function logOnBeforeRequest(eventDetails) {
             if (urlHdr === undefined) {
                 // If not there, added it.
                 requestHandle.globalHdrs.push({ name: "url", value: eventDetails.url });
+                requestHandle.originUrl = eventDetails.url;
             }
             else {
                 // If there, update it in case of redirect change.
                 urlHdr.value = eventDetails.url;
+                requestHandle.originUrl = eventDetails.url;
             }
         } catch (err) {
             console.log("passing headers failed");
@@ -465,7 +467,8 @@ function onResponse(response) {
                                 extendedData: response.dataIn[0].extendedData,
                                 FirefoxPID: response.dataIn[0].FirefoxPID,
                                 os: response.dataIn[0].os,
-                                ConnectionTry : ConnectionTry
+                                ConnectionTry : ConnectionTry,
+                                originUrl : typeof requestHandle.originUrl === 'undefined'? '': requestHandle.originUrl
                             }],
                             dataOut: [],
                             optionsSendWith: response.optionsSendWith,
