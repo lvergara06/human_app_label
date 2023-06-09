@@ -38,8 +38,17 @@ echo
 echo Downloading Firefox Dev
 echo
 echo
-if ! command -v firefox-developer-edition &> /dev/null
-then
+# Path to the Firefox executable
+firefox_path="/opt/firefox/firefox"
+
+# Check the version
+version=$(firefox_path --version | awk '{print $3}')
+
+# Compare the version
+if [[ "$version" == "114.0" ]]; then
+    echo "Firefox version 114.0 already installed"
+else
+    cd $TMPDIR
     # Download the latest version of Firefox Developer Edition
     wget -O firefox-developer-114.tar.bz2 'https://ftp.mozilla.org/pub/firefox/releases/114.0b9/linux-x86_64/en-US/firefox-114.0b9.tar.bz2'
 
@@ -53,7 +62,7 @@ then
     sudo ln -s /opt/firefox/firefox /usr/bin/firefox-developer-edition
 
     # Cleanup the downloaded archive
-    rm firefox.tar.bz2
+    rm firefox-developer-114.tar.bz2
 
     echo "Firefox Developer Edition is installed."
 else
@@ -271,10 +280,10 @@ sudo chmod 777 ~/.local/share/applications/firefox_user_to_network.desktop
 echo
 # Adding firefox_user_to_network to the favorites dock
 echo "Adding firefox_user_to_network to favorites"
-sudo gsettings set org.gnome.shell favorite-apps "$(gsettings get org.gnome.shell favorite-apps | sed "s/]/, 'firefox_user_to_network.desktop']/")"
+gsettings set org.gnome.shell favorite-apps "$(gsettings get org.gnome.shell favorite-apps | sed "s/]/, 'firefox_user_to_network.desktop']/")"
 echo
 echo "Removing regular firefox from favorites"
-sudo gsettings set org.gnome.shell favorite-apps "$(gsettings get org.gnome.shell favorite-apps | sed "s|, 'firefox_firefox.desktop'||" | sed "s|'firefox_firefox.desktop', ||" | sed "s|'firefox_firefox.desktop' ||" | sed "s|'firefox_firefox.desktop']|]|")"
+gsettings set org.gnome.shell favorite-apps "$(gsettings get org.gnome.shell favorite-apps | sed "s|, 'firefox_firefox.desktop'||" | sed "s|'firefox_firefox.desktop', ||" | sed "s|'firefox_firefox.desktop' ||" | sed "s|'firefox_firefox.desktop']|]|")"
 echo
 echo "firefox_user_to_network Installed"
 echo
