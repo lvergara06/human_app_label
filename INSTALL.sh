@@ -163,4 +163,20 @@ fi
 
 echo
 
+echo "Changing icon for firefox"
+sudo cp /opt/firefox/user_to_network/user_to_network_Extension/default128.png /opt/firefox/browser/chrome/icons/default
+
+echo "Installing firefox_user_to_network to the apps menu"
+sudo cp /opt/firefox/user_to_network/user_to_network_Extension/firefox_user_to_network.desktop ~/.local/share/applications
+sudo chmod 777 ~/.local/share/applications/firefox_user_to_network.desktop
+echo
+# Adding firefox_user_to_network to the favorites dock
+echo "Adding firefox_user_to_network to favorites"
+gsettings set org.gnome.shell favorite-apps "$(gsettings get org.gnome.shell favorite-apps | sed "s/]/, 'firefox_user_to_network.desktop']/")"
+echo
+echo "Removing regular firefox from favorites"
+gsettings set org.gnome.shell favorite-apps "$(gsettings get org.gnome.shell favorite-apps | sed "s|, 'firefox_firefox.desktop'||" | sed "s|'firefox_firefox.desktop', ||" | sed "s|'firefox_firefox.desktop' ||" | sed "s|'firefox_firefox.desktop']|]|")"
+echo
+echo "firefox_user_to_network Installed"
+
 echo "DONE!"
