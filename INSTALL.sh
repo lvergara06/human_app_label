@@ -39,13 +39,14 @@ echo Downloading Firefox Dev
 echo
 echo
 # Path to the Firefox executable
-firefox_path="/opt/firefox/firefox"
+firefox_path=/opt/firefox/firefox
 
 # Check the version
 version=$(firefox_path --version | awk '{print $3}')
 
 # Compare the version
-if [[ "$version" == "114.0" ]]; then
+if [[ "$version" == "114.0" ]]
+then
     echo "Firefox version 114.0 already installed"
 else
     cd $TMPDIR
@@ -64,9 +65,7 @@ else
     # Cleanup the downloaded archive
     rm firefox-developer-114.tar.bz2
 
-    echo "Firefox Developer Edition is installed."
-else
-    echo "Firefox Developer Edition is already installed."
+    echo "Firefox version 114.0 is installed."
 fi
 echo
 echo
