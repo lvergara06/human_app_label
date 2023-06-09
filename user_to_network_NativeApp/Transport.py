@@ -26,6 +26,8 @@ import getopt
 import datetime
 
 linuxConfigFile = "/opt/firefox/user_to_network/user_to_network_NativeApp/Transport.conf" ## This file has the line arguments for linux
+defaultJsonFile = "/opt/firefox/user_to_network/user_to_network_NativeApp/connections.json"
+defaultCsvFile = "/opt/firefox/user_to_network/user_to_network_NativeApp/connections.csv"
 
 try:
     # Python 3.x version
@@ -53,11 +55,8 @@ try:
         
     def getOptions(responseMessage):
         errorMsg = ""
-        linuxConfigFile = "/opt/firefox/user_to_network/user_to_network_NativeApp/Transport.conf"
-        defaultJsonFile = "/opt/firefox/user_to_network/user_to_network_NativeApp/connections.json"
-        defaultCsvFile = "/opt/firefox/user_to_network/user_to_network_NativeApp/connections.csv"
         
-        if not path.exists(linuxConfigFile):
+        if not os.path.exists(linuxConfigFile):
             # All defaults
             responseMessage['dataOut'].append(('popupOption', 'News'))
             responseMessage['dataOut'].append(('popupOption', 'Streaming'))
@@ -81,7 +80,7 @@ try:
         opts, args = getopt.getopt(argv, 's:E:l:j:c:')
         for o, a in opts:
             if o == "-l":
-                if not path.exists(a.strip('"')):
+                if not os.path.exists(a.strip('"')):
                     errorMsg += "Error: Could not find options file: {}. ".format(a)
                     # All defaults
                     responseMessage['dataOut'].append(('popupOption', 'News'))
