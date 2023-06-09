@@ -99,8 +99,8 @@ sudo chmod -R 777 /opt/firefox/user_to_network
 echo "/opt/firefox/user_to_network permisions changed"
 echo
 echo
-echo
-echo
+echo "Changing icon for firefox"
+sudo cp /opt/firefox/user_to_network/user_to_network_Extension/default128.png /opt/firefox/browser/chrome/icons/default
 echo "User to network copied to /opt/firefox/user_to_network"
 echo
 echo
