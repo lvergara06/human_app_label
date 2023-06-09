@@ -12,6 +12,8 @@ export NVM_DIR="$HOME/.nvm"
 [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
 [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 
+echo "Do not close this window if you are using firefox!!!"
+echo "PLEASE LEAVE THIS WINDOW OPEN IT WILL CLOSE ON ITS OWN"
 # Run the web-ext tool with the Firefox Developer Edition
 web-ext run --firefox-binary "$firefox_dev_path" -s "$extension_path"
 
