@@ -40,10 +40,10 @@ echo
 firefox_path=/opt/firefox/firefox
 
 # Check the version
-version=$(firefox_path --version | awk '{print $3}')
+version=$($firefox_path --version | awk '{print $3}')
 
 # Compare the version
-if [[ "$version" == "114.0" ]]
+if [[ "$version" == "114.0b9" ]]
 then
     echo "Firefox version 114.0 already installed"
 else
@@ -60,17 +60,17 @@ fi
 if [ ! -d "/opt/firefox/user_to_network" ]; then
     echo "Creating app space at /opt/firefox/user_to_network"
     sudo mkdir -p /opt/firefox/user_to_network
+    # Copy user_to_network to app space
+    echo "Copying $TMPDIR/user_to_network to /opt/firefox/user_to_network"
+    sudo cp -r $TMPDIR/user_to_network/* /opt/firefox/user_to_network
+    echo "Copied user_to_network"
+    sudo rm -rf $TMPDIR/user_to_network
     sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/connectionsBkp
     sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/logs
     sudo chmod -R 777 /opt/firefox/user_to_network
     echo "App space created"
 fi
 
-# Copy user_to_network to app space
-echo "Copying $TMPDIR/user_to_network to /opt/firefox/user_to_network"
-sudo cp -r $TMPDIR/user_to_network/* /opt/firefox/user_to_network
-echo "Copied user_to_network"
-sudo rm -rf $TMPDIR/user_to_network
 
 # Create mozilla directory and copy json to it
 echo "Creating mozilla native messaging directory"
