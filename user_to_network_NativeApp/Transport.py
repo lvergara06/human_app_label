@@ -1,21 +1,14 @@
 #!/usr/bin/env python3
 
-# This App receives messages from background.js extension in firefox
-# This App must be installed prior to extension
+#####################################################################
+# Name: Transport.py
+# Desc: This App receives messages from background.js extension 
+# in firefox and processes based on message state. 
 #
-# For Windows add this key registry: HKEY_LOCAL_MACHINE\SOFTWARE\Mozilla\NativeMessagingHosts\Transport
-# For Windows the key should have a single (Default) value with a path to this app's json. ie. C:\Users\userid\path\to\Transport.json
-# For Linux make sure that Trasnport.py exists at /usr/{lib,lib64,share}/mozilla/native-messaging-hosts/Transport.json
-#
-# example json for linux
-#{
-#  "name": "Transport",
-#  "description": "Send transport layer information from firefox to database",
-#  "path": "/path/to/native-messaging/app/Trasnport.py",
-#  "type": "stdio",
-#  "allowed_extensions": [ "ping_pong@example.org" ]
-#}
-
+######################################################################
+# Change Log:
+# 06/26/2023   Luis Vergara      Use snapshots to find netstat matches
+######################################################################
 import sys
 import json
 import struct
@@ -24,10 +17,22 @@ import os
 from time import sleep
 import getopt
 import datetime
+import csv
+import re
 
 linuxConfigFile = "/opt/firefox/user_to_network/user_to_network_NativeApp/Transport.conf" ## This file has the line arguments for linux
+        # linuxConfigFile should contain some of these options in line form i.e. -j json.json -c csv.csv -l /tmp/options.txt
+        # -E : Extended information - Default is to only get the minimum amount of data from the extension. If you want all the request headers and responses use -E 'All'
+        # -l : Options file
+        # -j : JSON file
+        # -c : CSV file
 defaultJsonFile = "/opt/firefox/user_to_network/user_to_network_NativeApp/connections.json"
 defaultCsvFile = "/opt/firefox/user_to_network/user_to_network_NativeApp/connections.csv"
+snapsDir = "/opt/firefox/user_to_network/user_to_network_NativeApp/snaps"
+outDir = "/opt/firefox/user_to_network/user_to_network_NativeApp/output"
+logsDir = "/opt/firefox/user_to_network/user_to_network_NativeApp/logs"
+allConnectionsDir = "/opt/firefox/user_to_network/user_to_network_NativeApp/allConnections"
+timeStamp = ""
 
 try:
     # Python 3.x version
@@ -52,58 +57,102 @@ try:
         sys.stdout.buffer.write(encodedMessage['length'])
         sys.stdout.buffer.write(encodedMessage['content'])
         sys.stdout.buffer.flush()
+
+    # Logs events to log file
+    def logEvent(state, dataIn, dataOut, exitMessage, logFile = "NONE"):
+        logEntry = {}
+        logEntry['state'] = state
+        logEntry['timeStamp'] = timeStamp
+        logEntry['dataIn'] = dataIn
+        logEntry['dataOut'] = dataOut
+        logEntry['exitMessage'] = exitMessage
+
+        if logFile == "NONE":
+            # Use log file from input
+            #logFile = dataIn['logFile']
+            return
         
-    def getOptions(responseMessage):
+        directory = logsDir
+        os.makedirs(directory, exist_ok=True)
+
+        # Check if the files already exist or not
+        answ = os.path.exists(logFile)
+        with open(logFile, 'a' if answ else 'w') as logF:
+            json.dump(logEntry, logF)
+            logF.write("\n")
+        
+    # add_connection - Takes a dictionary to write to csv or json
+    def add_connection(connection, filename, filetype):
+        # Check if the files already exist or not
+        answ = os.path.exists(filename)
+        if filetype == "json":
+            with open(filename, 'a' if answ else 'w') as filetypeF:
+                json.dump(connection, filetypeF, indent=4)
+        elif filetype == "csv":
+            with open(filename, 'a' if answ else 'w', newline='') as filetypeF:
+                writer = csv.writer(filetypeF)
+                writer.writerow(connection.values)
+
+    # Retrieves options from config file or uses defaults 
+    # Works on the provided array = []
+    # Returns a string for error messages
+    def getOptions(options):
         errorMsg = ""
         
+            ## Use all defaults if the linux config file doesn't exist
         if not os.path.exists(linuxConfigFile):
-            # All defaults
-            responseMessage['dataOut'].append(('popupOption', 'News'))
-            responseMessage['dataOut'].append(('popupOption', 'Streaming'))
-            responseMessage['dataOut'].append(('popupOption', 'Social Media'))
-            responseMessage['dataOut'].append(('popupOption', 'Rather not say'))
-            responseMessage['dataOut'].append(('jsonFile', defaultJsonFile))
-            responseMessage['dataOut'].append(('csvFile', defaultCsvFile))
+                # All defaults
+            options.append(('popupOption', 'News'))
+            options.append(('popupOption', 'Streaming'))
+            options.append(('popupOption', 'Social Media'))
+            options.append(('popupOption', 'Rather not say'))
+            options.append(('jsonFile', defaultJsonFile))
+            options.append(('csvFile', defaultCsvFile))
             
+                # Not exactly an error but a message for debugging
             return "File: {} not found. Using default: {}".format(linuxConfigFile, defaultJsonFile)
         else: 
-            errorMsg += " Config file found!"
+                # We can use options from config file
+            errorMsg += "LOG: Config file found!:"
+                # Read in options from configl file
             with open(linuxConfigFile, 'r') as f:
                 argv = f.readline().split()
-
-        # Parse the arguments
-        # -s : Send with - Default is to have the native app send the connections to the api via http post. Use -s if you want the browser to send it
-        # -E : Extended information - Default is to only get the minimum amount of data from the extension. If you want all the request headers and response use -E 'All'
-        # -l : Options file
-        # -j : JSON file
-        # -c : CSV file
-        opts, args = getopt.getopt(argv, 's:E:l:j:c:')
+            # Parse the options 
+        opts, args = getopt.getopt(argv, 'E:l:j:c:')
         for o, a in opts:
+                # If list of options for popup
             if o == "-l":
                 if not os.path.exists(a.strip('"')):
-                    errorMsg += "Error: Could not find options file: {}. ".format(a)
-                    # All defaults
-                    responseMessage['dataOut'].append(('popupOption', 'News'))
-                    responseMessage['dataOut'].append(('popupOption', 'Streaming'))
-                    responseMessage['dataOut'].append(('popupOption', 'Social Media'))
-                    responseMessage['dataOut'].append(('popupOption', 'Rather not say'))
+                    errorMsg += "Error: Could not find options file; {}.Using default popup options: ".format(a)
+                        # All defaults
+                    options.append(('popupOption', 'News'))
+                    options.append(('popupOption', 'Streaming'))
+                    options.append(('popupOption', 'Social Media'))
+                    options.append(('popupOption', 'Rather not say'))
                 else:
+                        # Read in the popup options and add them to the options array
                     with open(a.strip('"'), 'r') as f:
                         data = f.readlines()
                         for line in data:
-                            responseMessage['dataOut'].append(('popupOption', line.strip('\n')))
+                            options.append(('popupOption', line.strip('\n')))
+                # If json file specified
             if o == "-j":
-                responseMessage['dataOut'].append(('jsonFile', a))
+                options.append(('jsonFile', a))
+                # If csv file specified
             if o == "-c":
-                responseMessage['dataOut'].append(('csvFile', a))
+                options.append(('csvFile', a))
 
-        if not any('jsonFile' in i for i in responseMessage['dataOut']):
-            responseMessage['dataOut'].append(('jsonFile', defaultJsonFile))
-            responseMessage['dataOut'].append(('csvFile', defaultCsvFile))
-            errorMsg += "Using default path for JSON and CSV files: {}.".format(defaultJsonFile)
+            # If the json file or csv file are not specified then use the defaults for these
+        if not any('jsonFile' in i for i in options):
+            options.append(('jsonFile', defaultJsonFile))
+            errorMsg += "LOG:Using default path for json file/: {}.".format(defaultJsonFile)
+        if not any('csvFile' in i for i in options):
+            options.append(('csvFile', defaultCsvFile))
+            errorMsg += "LOG:Using default path for csv file.: {}.".format(defaultCsvFile)
 
-        # list of options tuple (opt, value)
-        responseMessage['dataOut'].append(opts)
+            # list of options tuple (opt, value)
+            # Sending the list of config options back.
+        options.append(opts)
 
         return errorMsg
 
@@ -113,253 +162,243 @@ try:
     def session_start(receivedMessage):
         responseMessage = {}
         responseMessage['state'] = receivedMessage['state']
-        responseMessage['dataIn'] = receivedMessage['dataIn']
         responseMessage['dataOut'] = []
-        responseMessage['exitMessage'] = "Success"
+        responseMessage['exitMessage'] = ""
         
-        # Get options
-        responseMessage['exitMessage'] += getOptions(responseMessage);    
+            # Get options
+        responseMessage['exitMessage'] += getOptions(responseMessage['dataOut']);    
         
-        #Get firefox main pid
+            #Get firefox main pid
         p = subprocess.Popen(["ps", "-eaf"], stdout=subprocess.PIPE)
         out = p.stdout.read()
         decodedTasklist = out.decode('ascii')
         out_tasklist = decodedTasklist.split('\n')
         mainPID = []
         for line in out_tasklist:
-            # skip web-ext processes
+                # skip web-ext processes
             if line.find("web-ext") >= 0:
                 continue
-            # /opt/firefox/firefox is the Firefox Dev version
+                # /opt/firefox/firefox is the Firefox Dev version
             if line.find("/opt/firefox/firefox") >= 0:
                 mainPID=line
                 break
         split = ' '.join(mainPID.split()).split(' ')        
-        # Add the firefox main pid to the response
+            # Add the firefox main pid to the response
         responseMessage['dataOut'].append(("FirefoxPID", split[1]))
 
-        # Return a log file
-        responseMessage['dataOut'].append(("LogFile", "/opt/firefox/user_to_network/user_to_network_NativeApp/logs/Transport." + split[1] + ".log"))
+            # Return a log file
+        logFile = f"{logsDir}/Transport." + split[1] + ".log"
+        responseMessage['dataOut'].append(("logFile", logFile))
+        logEvent(receivedMessage['state'], [], responseMessage['dataOut'], responseMessage['exitMessage'], logFile)        
         sendMessage(encodeMessage(responseMessage))
-        
-    #
-    # addConnection - Opens the connection files and adds the connections to it
-    # 
 
-    def addConnection(receivedMessage):
-        original_stdout = sys.stdout # Save a reference to the original standard output
+    # logConnection - This writes out the request from browser
+    def write_data_to_file(receivedMessage):
         responseMessage = {}
         responseMessage['state'] = receivedMessage['state']
-        responseMessage['dataIn'] = receivedMessage['dataIn']
         responseMessage['dataOut'] = []
-        responseMessage['exitMessage'] = "Success"
-        ConnectionTry = receivedMessage['dataIn'][0]['ConnectionTry']
-        ConnectionTry += 1
-        jsonFile = ""
-        csvFile = ""
-        LogFile = "/opt/firefox/user_to_network/user_to_network_NativeApp/logs/Transport." + responseMessage['dataIn'][0]['FirefoxPID'] + ".log"
-        extendData = False        
-        found = False
+        responseMessage['exitMessage'] = ""
+        pid = receivedMessage['dataIn']['FirefoxPID']
+        errorMsg = ""
+        logFile = receivedMessage['logFile']
+            # Create the directory path
+        directory = allConnectionsDir
+        os.makedirs(directory, exist_ok=True)
+
+            # Generate the filename using the user and utc date YYYmmDD
+        today = timeStamp.split(".")[0]
+        filename = f"{directory}/connectionslog_{today}_pid_{pid}.txt"
+        responseMessage['dataOut'].append(("logFile", filename))
+
+            # Check if the file already exists
+        file_exists = os.path.isfile(filename)
+
+            # Open the file in append mode if it exists, otherwise in write mode
+        mode = 'a' if file_exists else 'w'
+        with open(filename, mode) as file:
+                # Write the dataIn to the file
+            json.dump(receivedMessage["dataIn"], file, indent=4)
+            file.write('\n')
+            errorMsg += "LOG:Added connection successfuly"
+
+        responseMessage['exitMessage'] = errorMsg
+        logEvent(receivedMessage['state'], receivedMessage['dataIn'], responseMessage['dataOut'], responseMessage['exitMessage'], logFile)
+        sendMessage(encodeMessage(responseMessage))
+    #
+    # netstat_to_file - takes a snap shot of netstat. The after snapshot will also check what has changed and compare it to dest ip. 
+    #
+    def netstat_to_file(receivedMessage):
+        responseMessage = {}
+        responseMessage['state'] = receivedMessage['state']
+        responseMessage['dataOut'] = []
+        responseMessage['exitMessage'] = ""
+        logFile = receivedMessage['logFile']
         
-        # Get options
-        responseMessage['exitMessage'] = getOptions(responseMessage); 
-        for o in responseMessage['dataOut']:
-            if o[0] == "jsonFile":
-                jsonFile = o[1]
-            if o[0] == "csvFile":
-                csvFile = o[1]
-            if o[0] == "-E":
-                extendData=True
+        state = receivedMessage['state']
+        FirefoxPID = receivedMessage['dataIn']['FirefoxPID']
+        requestId = receivedMessage['dataIn']['id']
 
-        # Run this two times max because if the connection has not had time to be established I want to retry after a few secs
-        for i in range(2):
-            if found:
-                break
-            #Run netstat 
-            # These areguments are based on ubuntu netstat
-            arguments = "-antp"
-            p = subprocess.Popen(["netstat", arguments], stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-            out = p.stdout.read()
-            decodedNetstat = out.decode('ascii')
-            out_netstat = decodedNetstat.split('\n')
+            # The timestamp will help keep different logs on similar ids
+        timestamp = timeStamp
 
-            # Check if the json files already exist or not
-            answ = os.path.exists(jsonFile)
-            answ2 = os.path.exists(csvFile)
-            answ3 = os.path.exists(LogFile)
-            connectionEntry = {}
-            connectionEntry['connections'] = []
-            with open(jsonFile, 'a' if answ else 'w') as jsonF, \
-                open(csvFile , 'a' if answ2 else 'w') as csvF, \
-                open(LogFile, 'a' if answ3 else 'w') as logF:
-                # Look for the connections per destinationIp and firefox pid
-                sys.stdout = logF
-                print("Looking for ip address : [" + receivedMessage['dataIn'][0]['destinationIp'] + "] \
-                    on port : [" + receivedMessage['dataIn'][0]['destinationPort'] + "]")
+        directory = snapsDir
+        os.makedirs(directory, exist_ok=True)
 
-                for line in out_netstat:
-                    netstatLineSplit = ' '.join(line.split()).split(' ')
+        if state == "snapBefore":
+            snapshot_file = f"{snapsDir}/snapBefore.{FirefoxPID}.{requestId}.{timestamp}.out"
+        elif state == "snapAfter":
+            snapshot_file = f"{snapsDir}/snapAfter.{FirefoxPID}.{requestId}.{timestamp}.out"
+        
+        responseMessage['dataOut'].append(("snapFile", snapshot_file))
+
+        with open(snapshot_file, 'w') as outputFile:
+            p = subprocess.Popen(["netstat", "-antp", "|", "grep", FirefoxPID], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+
+            # Wait for the subprocess to finish and capture the output
+            subprocess_output, subprocess_error = p.communicate()
+
+            # Check if the subprocess completed successfully
+            if p.returncode == 0:
+                # Process or use the output as needed
+                outputFile.write(subprocess_output.decode())  # Output from stdout
+
+        logEvent(receivedMessage['state'], receivedMessage['dataIn'], responseMessage['dataOut'], responseMessage['exitMessage'], logFile)
+        return sendMessage(encodeMessage(responseMessage))
+    
+    # A main connection consists of a user selection
+    # We will want to take a diff of before and after snap to find new netstat rows
+    # From those we will look for a match on destination ip, port, pid 
+    def add_main_connection(receivedMessage):
+        responseMessage = {}
+        responseMessage['state'] = receivedMessage['state']
+        responseMessage['dataOut'] = []
+        responseMessage['exitMessage'] = ""
+        timestamp = timeStamp
+        FirefoxPID = receivedMessage['dataIn']['FirefoxPID']
+        logFile = receivedMessage['logFile']
+        requestId = receivedMessage['dataIn']['id']
+        before_file = ""
+        after_file = ""
+        diff_file = f"{snapsDir}/snapDiff.{FirefoxPID}.{requestId}.{timestamp}.out"
+        work_file = ""
+        output_file = f"{outDir}/match.{FirefoxPID}.{requestId}.{timestamp}.out"
+        epochTime = receivedMessage['dataIn']['sendHeadersTimeStamp']
+        userSelection = receivedMessage['dataIn']['userSelection']
+        originUrl = receivedMessage['dataIn']['originUrl']
+        destinationIp = receivedMessage['dataIn']['destinationIp']
+        destinationPort = receivedMessage['dataIn']['destinationPort']
+        errorMsg = ""
+
+        directory = outDir
+        os.makedirs(directory, exist_ok=True)
+
+            # Look for before and after snap file
+        for filename in os.listdir(snapsDir):
+            if re.match(f"snapBefore.{FirefoxPID}.{requestId}.*.out", filename):
+                before_file = snapsDir+"/"+filename
+            if re.match(f"snapAfter.{FirefoxPID}.{requestId}.*.out", filename):
+                after_file = snapsDir+"/"+filename
+        
+            # Check the input files they are needed
+        if before_file == "":
+            errorMsg += f"ERROR: No before_file found in {snapsDir}:"
+        if after_file == "":
+            errorMsg += f"ERROR: No after_file found in {snapsDir}:"
+
+            # Let's see if there is any difference between before and after
+        with open(before_file, 'r') as before, open(after_file, 'r') as after:
+            after_lines = after.readlines()
+            before_lines = before.readlines()
+            difference = set(after_lines) - set(before_lines)
+
+                #Check for diff
+            if difference:
+                with open(diff_file, 'w') as diff:
+                    diff.writelines(difference)
+                    errorMsg += f"Log: Using diff_file to find netstat connection.:"
+                    work_file = diff_file
+            else:
+                errorMsg += f"Log: Using after_file to find netstat connection.:"
+                work_file = after_file
+        
+        found = False
+            # If we can't find the connection in a diff we will also look in after_file
+        if work_file == diff_file:
+            loop = 2
+        else:
+            loop = 1
+        
+        i = 0
+        while i < loop:
+            with open(work_file, 'r') as workF:
+                    # We're looking for matches on destination ip, port, pid
+                for line in workF:
+                    netstatLineSplit = line.split()
                     if len(netstatLineSplit) == 7 :  # Picks out the blanks
+                        netstatLineProtocol = netstatLineSplit[0]
                         netstatLineDestinationIP = netstatLineSplit[4].split(':')[0]
                         netstatLineDestinationPort = netstatLineSplit[4].split(':')[1]
                         netstatLinePID = netstatLineSplit[6].split('/')[0]
                         netstatLineSourceIP = netstatLineSplit[3].split(':')[0]
                         netstatLineSourcePort = netstatLineSplit[3].split(':')[1]
                         netstatLineState = netstatLineSplit[5]
-                        
-                        sys.stdout = logF
-                        print("checking in netstat : " + " ".join(str(x) for x in netstatLineSplit))
-                        
-                        if (len(receivedMessage['dataIn'][0]) > 0 and 
-                            netstatLineDestinationIP == receivedMessage['dataIn'][0]['destinationIp'] and 
-                            # Seems like an initial connection can start at 80 even if the final url is https
-                            # We'll comment out this match to allow connections on port 80
-                            # netstatLineDestinationPort == receivedMessage['dataIn'][0]['destinationPort'] and
-                            # Quick workaround
-                            ("80" in receivedMessage['dataIn'][0]['destinationPort'] or 
-                             "443" in receivedMessage['dataIn'][0]['destinationPort'] or
-                             netstatLineDestinationPort == receivedMessage['dataIn'][0]['destinationPort']) and
-                            # Some connections close before we can look them up so allow
-                            # TIME WAIT as the status instead of matching pid
-                            (netstatLinePID == responseMessage['dataIn'][0]['FirefoxPID'] or
-                             netstatLineState == "TIME_WAIT")):
-                            print("Match found")
-                            found = True
-                            utc_time = datetime.datetime.utcfromtimestamp(receivedMessage['dataIn'][0]['epochTime']/1000.0)
+                        if (netstatLineDestinationIP == destinationIp and
+                            netstatLineDestinationPort == destinationPort and
+                            netstatLinePID == FirefoxPID):
+                                # Add this connection and log
+                            errorMsg += (f"Log: Match found on " 
+                                            f"{netstatLineProtocol} {netstatLineState} " 
+                                            f"{netstatLineDestinationIP}:{netstatLineDestinationPort} " 
+                                            f"{netstatLinePID}." 
+                                            f" Output: {output_file}")
+                            utc_time = datetime.datetime.utcfromtimestamp(epochTime/1000.0)
                             utcRead = utc_time.strftime('%Y-%m-%d %H:%M:%S')
-                            sys.stdout = jsonF
                             connection = {}
-                            connection['protocol'] = netstatLineSplit[0]
+                            connection['protocol'] = netstatLineProtocol
                             connection['sourceIp'] = netstatLineSourceIP
                             connection['sourcePort'] = netstatLineSourcePort
                             connection['destinationIp'] = netstatLineDestinationIP
                             connection['destinationPort'] = netstatLineDestinationPort
                             connection['status'] = netstatLineState
                             connection['pid'] = netstatLinePID
-                            connection['userSelection'] = receivedMessage['dataIn'][0]['userSelection']
-                            connection['epochTime'] = receivedMessage['dataIn'][0]['epochTime']
-                            connection['utcTime'] = utcRead
-                            connection['originUrl'] = '' if receivedMessage['dataIn'][0]['originUrl'] is None else receivedMessage['dataIn'][0]['originUrl']
-                            if extendData:
-                                connection['extendedData'] = receivedMessage['dataIn'][0]['extendedData']
-                            else:
-                                connection['extendedData'] = []
-                            connectionEntry['connections'].append(connection)
-                            json_object = json.dumps(connection, indent=4)
-                            # to json
-                            print(json_object)
-                            sys.stdout = csvF
-                            # to csv
-                            print(connection['protocol'] + "," +
-                                connection['sourceIp'] + "," +
-                                connection['sourcePort'] + "," +
-                                connection['destinationIp'] + "," +
-                                connection['destinationPort'] + "," +
-                                connection['status'] + "," +
-                                connection['pid'] + "," +
-                                connection['userSelection'] + "," +
-                                str(connection['epochTime']) + "," +
-                                utcRead + "," +
-                                connection['originUrl'])
-                            sys.stdout = jsonF
-                sys.stdout = original_stdout # Reset the standard output to its original value
-                if found == False:
-                    sleep(30)
+                            connection['epochTime'] = epochTime
+                            connection['userSelection'] = userSelection
+                            connection['originUrl'] = originUrl
+                            connection['date'] = utcRead
+                            responseMessage['dataOut'].append(connection)
+                            add_connection(connection, output_file, "json") 
+                            found = True
+            i += 1
+                # Swap out the file we look in
+            if not found and work_file == diff_file:
+                work_file = after_file
+            # If we looked in diff and after file and still not found log that as an error
+        if not found:
+            errorMsg += f"ERROR: connection NOT found - {destinationIp}:{destinationPort} pid - {FirefoxPID} " \
+                        f" in {work_file}.:"
+        responseMessage['exitMessage'] = errorMsg
+        logEvent(receivedMessage['state'], receivedMessage['dataIn'], responseMessage['dataOut'], responseMessage['exitMessage'], logFile)
+        return sendMessage(encodeMessage(responseMessage))
         
-        if found == False:
-            responseMessage['exitMessage'] = 'connection to netstat connection not found'     
-            responseMessage['dataOut'].append(("ConnectionTry", ConnectionTry))    
-        else :
-            responseMessage['dataOut'] = connectionEntry
-            responseMessage['exitMessage'] = "Success"
-        sendMessage(encodeMessage(responseMessage))
-
-    # deleteTab - Delets the file for this tab
-    # Inputs :
-    # TabId
-    def deleteTab(receivedMessage):
-        original_stdout = sys.stdout # Save a reference to the original standard output
-        tabHandle = str(receivedMessage['dataIn']['tabId']);
-        tabFile = str(tabHandle) + "connections.txt";
-        responseMessage = {}
-        responseMessage['state'] = receivedMessage['state']
-        responseMessage['dataIn'] = receivedMessage['dataIn']
-        responseMessage['dataOut'] = []
-        responseMessage['exitMessage'] = "Success"
-        
-        #Check if file exists
-        if os.path.exists("connections/" + tabFile) :
-            os.remove("connections/" + tabFile);
-        
-        responseMessage['exitMessage'] = "Success"              
-        sendMessage(encodeMessage(responseMessage))
-
-    # logConnection - This rights out the request from browser
-    # Inputs: Request
-    def write_data_to_file(receivedMessage):
-        original_stdout = sys.stdout # Save a reference to the original standard output
-        responseMessage = {}
-        responseMessage['state'] = receivedMessage['state']
-        responseMessage['dataIn'] = receivedMessage['dataIn']
-        responseMessage['dataOut'] = []
-        responseMessage['exitMessage'] = "Success"
-        pid = receivedMessage['dataIn'][0]['FirefoxPID']
-        # Create the directory path
-        directory = '/opt/firefox/user_to_network/user_to_network_NativeApp/allConnections/'
-        os.makedirs(directory, exist_ok=True)
-
-        # Generate the filename using the user and today's date
-        today = datetime.date.today().strftime("%Y-%m-%d")
-        filename = f"{directory}connectionslog_{today}_pid_{pid}.txt"
-
-        # Check if the file already exists
-        file_exists = os.path.isfile(filename)
-
-        # Open the file in append mode if it exists, otherwise in write mode
-        mode = 'a' if file_exists else 'w'
-        with open(filename, mode) as file:
-            # Write the dataIn to the file
-            json.dump(receivedMessage["dataIn"], file)
-            file.write('\n')       
-
     while True:
         receivedMessage = getMessage()
+        timestampfloat = datetime.datetime.utcnow()
+        timeStamp = timestampfloat.strftime('%Y%m%d.%H%M%S')
 
         #### Run the program based on received state
         if receivedMessage['state'] == "session_start":
-            #### Call create tab
             session_start(receivedMessage);
-        elif receivedMessage['state'] == "add_connection":
-            addConnection(receivedMessage);
-        elif receivedMessage['state'] == "delete_tab":
-            deleteTab(receivedMessage);
         elif receivedMessage['state'] == "logConnection":
             write_data_to_file(receivedMessage);
-except AttributeError:
-    # Python 2.x version (if sys.stdin.buffer is not defined)
-    # Read a message from stdin and decode it.
-    def getMessage():
-        rawLength = sys.stdin.read(4)
-        if len(rawLength) == 0:
-            sys.exit(0)
-        messageLength = struct.unpack('@I', rawLength)[0]
-        message = sys.stdin.read(messageLength)
-        return json.loads(message)
-
-    # Encode a message for transmission,
-    # given its content.
-    def encodeMessage(messageContent):
-        encodedContent = json.dumps(messageContent)
-        encodedLength = struct.pack('@I', len(encodedContent))
-        return {'length': encodedLength, 'content': encodedContent}
-
-    # Send an encoded message to stdout
-    def sendMessage(encodedMessage):
-        sys.stdout.write(encodedMessage['length'])
-        sys.stdout.write(encodedMessage['content'])
-        sys.stdout.flush()
-
-    while True:
-        receivedMessage = getMessage()
-        if receivedMessage == "ping":
-            sendMessage(encodeMessage("pong2"))
+        elif receivedMessage['state'] == "snapBefore":
+            netstat_to_file(receivedMessage);
+        elif receivedMessage['state'] == "snapAfter":
+            netstat_to_file(receivedMessage);
+        elif receivedMessage['state'] == "addMainConnection":
+            add_main_connection(receivedMessage);
+        else :
+            sendMessage(encodeMessage("Invalid State"))
+except Exception as e:
+# Python 2.x version (if sys.stdin.buffer is not defined)
+# Read a message from stdin and decode it.
+    sendMessage(encodeMessage(f"An Exception occured: {type(e).__name__}: {str(e)}"))

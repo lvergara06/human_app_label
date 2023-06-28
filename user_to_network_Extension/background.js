@@ -9,6 +9,11 @@
  * 20230605 - Luis Vergara - Refactored
  *                           Let write out all of the connections 
  *                           And keep all of the matching logic out.
+ * 20230609 - Luis Vergara - Snapshot of netstat before headers sent.
+ *                           Snapshot of netstat on headers recieved.
+ *                           Only snapshot for get main connections.
+ * 20230620 - Luis Vergara - Let's have special logic for get main_frame.
+ *                           To write specific fields to the log. 
  ****************************************************************/
 
 
@@ -19,14 +24,11 @@ let targetPage = "<all_urls>"; // Which pages trigger the dialog box
 
 let globalHeaders = [];    // Used to pass message to popup window
 let DEBUG = "ON";
-let optionsSendWith = "Python"
 let optionsExtendedWith = "";
 let FirefoxPID = "";
-let os = "";
+let logFile = "";
 let popupOptionsList = [];
-let CREATEAPIADDRESS = undefined;
 let redirectNeeded = undefined;  // If the request needs a redirection
-//let message = [];                // Message to be passed to native application {state "" , dataIn [] , dataOut [] , errorMessage ""}
 let requests = [];               // Requests made so far
 // {
 // id: "", request id from request headers
@@ -68,20 +70,11 @@ function logOnBeforeRequest(eventDetails) {
             url: eventDetails.url,
             method: eventDetails.method,
             type: eventDetails.type,
-            timeStamp: eventDetails.timeStamp,
+            createdTimeStamp: eventDetails.timeStamp,
             tabId: eventDetails.tabId,
-            destinationIp: "",
-            destinationPort: "",
-            urlBeforeRedirection: "",
-            BeforeRedirectDestIp: "",
-            globalHdrs: [],
-            completedIp: "",
-            requestStatus: "",
-            extendedData: [],
-            statusCode: "New",
-            userSelection: undefined,
-            originUrl: eventDetails.originUrl,
-            completedTime: undefined
+            requestStatus: "Created",
+            FirefoxPID : FirefoxPID,
+            originUrl : eventDetails.originUrl
         };
         requests.push(newRequest);
 
@@ -95,39 +88,25 @@ function logOnBeforeRequest(eventDetails) {
     }
     else {
         //Redirected?
-        if (requestHandle.requestStatus != "Redirected") {
+        if (!Object.hasOwn(requestHandle, 'redirected')) {
             console.error("Request " + eventDetails.requestId + " in logOnBeforeRequest again without redirection status");
             console.log(requestHandle);
         }
         else {
             // What could have changed during redirection?
             requestHandle.urlBeforeRedirection = requestHandle.url;
+            requestHandle.urlAfterRedirection = eventDetails.url;
             requestHandle.url = eventDetails.url;
         }
     }
 
-    // Save headers to send to popup
     // Only main_frame GET requests can invoke a popup window.
     if (eventDetails.type.toLowerCase() === "main_frame" && eventDetails.method.toLowerCase() === "get") {
+        // For get main_frame types we assume the originUrl is themselves
+        requestHandle.originUrl = eventDetails.url;
 
-        try {
-            // This url header will be passed to the popup window.
-            // Could it already by there if redirected?
-            const urlHdr = requestHandle.globalHdrs.find(({ name }) => name === "url");
-            if (urlHdr === undefined) {
-                // If not there, added it.
-                requestHandle.globalHdrs.push({ name: "url", value: eventDetails.url });
-                requestHandle.originUrl = eventDetails.url;
-            }
-            else {
-                // If there, update it in case of redirect change.
-                urlHdr.value = eventDetails.url;
-                requestHandle.originUrl = eventDetails.url;
-            }
-        } catch (err) {
-            console.log("passing headers failed");
-            console.error(err);
-        }
+        // Save url to send to popup
+        requestHandle.url4Popup = eventDetails.url;
     }
 
     logEvent("BeforeRequest", eventDetails, requestHandle);
@@ -156,7 +135,7 @@ function logOnBeforeSendHeaders(eventDetails) {
             requestHandle.port = hdr.value;
         }
         // Knowing the persistence of the connection can help
-        // determine if one or more main requests will be sent out
+        // determine if one or more connections will be sent out
         // by the same site. 
         if (hdr.name.toLowerCase() === "connection") {
             if (hdr.value.toLowerCase() === "keep-alive") {
@@ -182,11 +161,24 @@ function logOnBeforeSendHeaders(eventDetails) {
         }
     }
 
-    // If the request connection is "stay-alive" we assume that the connection will create a single flow.
-    // If the request connection in turn is "close" we will assume that subsequent http requests will create unique flows.
+    // If we didn't find the "stay-alive" value let's set persistent to false
     if (requestHandle.persistent === undefined) {
         // default to non persistent
         requestHandle.persistent = "false";
+    }
+
+    // Only main_frame GET requests will check netstat before their headers are sent.
+    if (eventDetails.type.toLowerCase() === "main_frame" && eventDetails.method.toLowerCase() === "get") {
+        //Let's get a snapshot of netstat before we send these hdrs
+        message = {
+            state: "snapBefore",
+            dataIn: {
+                id : requestHandle.id,
+                FirefoxPID : FirefoxPID
+            },
+            logFile : logFile
+        }   
+        callNative(message);
     }
 
     // Get event datails?
@@ -209,7 +201,7 @@ function logOnSendHeaders(eventDetails) {
     }
 
     // This timestamp is the closes to the flow.
-    requestHandle.timeStamp = eventDetails.timeStamp;
+    requestHandle.sendHeadersTimeStamp = eventDetails.timeStamp;
 
     // Get event datails?
     logEvent("SendHeaders", eventDetails, requestHandle);
@@ -220,7 +212,6 @@ function logOnSendHeaders(eventDetails) {
    Use this event to modify HTTP response headers. */
 function logOnHeadersReceived(eventDetails) {
     trace("logOnHeadersReceived", eventDetails);
-    console.log("in log on headersReceived eventDetailsIp is ["+ eventDetails.ip + "]");
     // Add destinationIp to the request 
     const requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
 
@@ -229,31 +220,14 @@ function logOnHeadersReceived(eventDetails) {
         console.error("No request struct for id: " + eventDetails.requestId + " in lonOnHeadersReceived.");
     }
     else {
-        // Check if it got response from cache
-        console.log("in log on headersReceived rqst ip is [" + requestHandle.destinationIp + "]");
-        if (eventDetails.ip === null) {
-            for (let requestHandleBkp of requests.filter(({ url }) => url === eventDetails.url)) {
-                if (requestHandleBkp.id != requestHandle.id) {
-                    requestHandle.destinationIp = requestHandleBkp.destinationIp;
-                    // Mark to remove the original and let the new one be referenced
-                    requestHandleBkp.statusCode = "Remove";
-                }
-                else {
-                    continue;
-                }
-            }
-        }
-        else {
-            if (requestHandle.requestStatus === "Redirected") {
-                if(requestHandle.BeforeRedirectDestIp === "" || requestHandle.BeforeRedirectDestIp === undefined) {
-                        // When a redirect is needed we might have a different ip address to track
-                    requestHandle.BeforeRedirectDestIp = requestHandle.destinationIp;
-                }
-            }
+            // This is where we want to check for destination ip
+            // But the ip could be null. And then what?
+            // We'll have the native app worry about such things.
+        if (eventDetails.ip != null) {
             requestHandle.destinationIp = eventDetails.ip;
         }
     }
-    console.log("in log on headersReceived beforeRedirectDestIp is [" + requestHandle.BeforeRedirectDestIp + "]");
+
     // Get event datails?
     logEvent("HeadersReceived", eventDetails, requestHandle);
 }
@@ -271,7 +245,7 @@ function logOnBeforeRedirect(eventDetails) {
         console.error("No request struct for id: " + eventDetails.requestId + " in logOnBeforeRedirect.");
     }
     else {
-        requestHandle.requestStatus = "Redirected";
+        requestHandle.redirected = "true";
     }
 
     // Get event datails?
@@ -288,6 +262,24 @@ function logOnResponseStarted(eventDetails) {
         // Should be an error
         // Even redirects get a new request id. 
         console.error("No request struct for id: " + eventDetails.requestId + " in logOnResponseStarted!");
+    }
+    else {
+        // For get main_frame types let's get the netstat after snapshot
+	if (eventDetails.type.toLowerCase() === "main_frame" && eventDetails.method.toLowerCase() === "get") {
+	    //Let's get a snapshot of netstat before we send these hdrs
+	    message = {
+            state: "snapAfter",
+            dataIn: {
+                id : requestHandle.id,
+                sendHeadersTimeStamp : requestHandle.sendHeadersTimeStamp,
+                destinationIp : requestHandle.destinationIp,
+                destinationPort : requestHandle.destinationPort,
+                FirefoxPID : FirefoxPID
+            },
+            logFile : logFile
+	    }   
+	    callNative(message);
+	}
     }
 
     // Get event datails?
@@ -308,17 +300,13 @@ async function logOnCompleted(eventDetails) {
     else {
         requestHandle.completedTime = eventDetails.timeStamp;
         // Let's log this
-        requestHandle.FirefoxPID = FirefoxPID;
         message = {
             state: "logConnection",
-            dataIn: [
-                requestHandle
-            ],
-            dataOut: [],
-            optionsSendWith: optionsSendWith,
-            exitMessage: ""   
+            dataIn: requestHandle,
+            logFile : logFile
         }   
         callNative(message);
+
         if (eventDetails.method.toLowerCase() === "get" && eventDetails.type.toLowerCase() === "main_frame") {
             requestHandle.statusCode = "GetMain";
             // Call pop up
@@ -366,21 +354,15 @@ browser.runtime.onInstalled.addListener(() => {
     // this function because we need the os info before we can call native app.
     browser.runtime.getPlatformInfo().then((info) => {
 
-        os = info.os;
-
         if (DEBUG === "ON") {
             console.log("Entrace to onInstalled");
-            console.log(os);
         }
 
         // Check if output file exists if not create it
         // Get the options
         state = "session_start";
         message = {
-            state: state,
-            dataIn: [{ os: os }],
-            dataOut: [],
-            exitMessage: ""
+            state: state
         };
 
         callNative(message);
@@ -393,11 +375,22 @@ browser.runtime.onInstalled.addListener(() => {
  * the selection along with netstat data is ready to be sent to database */
 
 function callNative(message) {
-    //  if (DEBUG === "ON") {
-    console.log("In callNative");
-    console.log("message is : " + JSON.stringify(message));
-    console.log(message);
-    //  }
+    
+    if (DEBUG === "ON") {
+        console.log("In callNative");
+        console.log("message is : " + JSON.stringify(message));
+        console.log(message);
+    }
+
+    if (message.state != "session_start" && (FirefoxPID === "" || FirefoxPID === undefined)){
+        // !! We shouldn't be here without the FirefoxPID 
+        // !! Let's try to start the session manually
+        // !! We'll lose whatever the message was.
+        state = "session_start";
+        message = {
+            state: state
+        };
+    }
     // Send the message to send all data to database
     var sending = browser.runtime.sendNativeMessage(
         "Transport",
@@ -410,26 +403,15 @@ function onResponse(response) {
     if (DEBUG === "ON") {
         console.log("In onResponse");
         console.log(response);
-        console.log(requests);
-    }
-    else {
-        console.log("In onResponse");
-        console.log(response);
     }
 
     if (response.state === "session_start") {
         // Default to 
-        optionsSendWith = "Python"
         optionsExtendedWith = "";
         popupOptionsList = [];
 
         // Get set options
         for (var i = 0; i < response.dataOut.length; i++) {
-            if (response.dataOut[i][0] === "-s") {
-                console.log("option " + response.dataOut[i][0] + " with : " + response.dataOut[i][1]);
-                optionsSendWith = "Extension";
-                CREATEAPIADDRESS = response.dataOut[i][1];
-            }
             if (response.dataOut[i][0] === "-E") {
                 console.log("option " + response.dataOut[i][0] + " with : " + response.dataOut[i][1]);
                 optionsExtendedWith = response.dataOut[i][1];
@@ -442,67 +424,18 @@ function onResponse(response) {
                 console.log("option " + response.dataOut[i][0] + " with : " + response.dataOut[i][1]);
                 FirefoxPID = response.dataOut[i][1];
             }
+            if (response.dataOut[i][0] === "logFile") {
+                console.log("option " + response.dataOut[i][0] + " with : " + response.dataOut[i][1]);
+                logFile = response.dataOut[i][1];
+            }
         }
     }
 
-    if (response.state === "add_connection") {
-            // Try to find a connection again 
-        if( response.exitMessage === "connection to netstat connection not found"){
-            for(var i = 0; i < response.dataOut.length; i++) {
-                if (response.dataOut[i][0] === "ConnectionTry") {
-                    ConnectionTry = response.dataOut[i][1];
-                    if (ConnectionTry < 2)
-                    {
-                        message = {
-                            state: response.state,
-                            dataIn: [{
-                                tabId: response.dataIn[0].tabId,
-                                destinationIp: response.dataIn[0].destinationIp,
-                                destinationPort: response.dataIn[0].destinationPort,
-                                userSelection: response.dataIn[0].userSelection,
-                                epochTime: response.dataIn[0].epochTime,
-                                completedIp: response.dataIn[0].completedIp,
-                                requestId: response.dataIn[0].requestId,
-                                originalDestIp: response.dataIn[0].originalDestIp,
-                                extendedData: response.dataIn[0].extendedData,
-                                FirefoxPID: response.dataIn[0].FirefoxPID,
-                                os: response.dataIn[0].os,
-                                ConnectionTry : ConnectionTry,
-                                originUrl : typeof requestHandle.originUrl === 'undefined'? '': requestHandle.originUrl
-                            }],
-                            dataOut: [],
-                            optionsSendWith: response.optionsSendWith,
-                            exitMessage: ""
-                        };
-                        callNative(message);
-                    }
-                    else {
-                        console.log("RequestId : " + response.dataIn[0].requestId + " netstat not found");
-                    }
-                }
-            }
-        }
-
+    if (response.state === "addMainConnection") {
         if( response.exitMessage === "Success"){
-            console.log("options sendwith is " + optionsSendWith);
             if (response.dataOut.connections.length > 0) {
                 for (let connection of response.dataOut.connections) {
-                        // You can decide to send the connection via http.
-                        // NOTE: We are using pythong to write out connections.
-                    if (optionsSendWith === "Extension") {
-                        var request = new XMLHttpRequest();
-                        request.open("POST", CREATEAPIADDRESS);
-                        request.setRequestHeader("Content-Type", "application/json");
-                        request.overrideMimeType("text/plain");
-                        request.onload = function () {
-                            console.log("Response received: " + request.responseText);
-                        };
-                        console.log("connection :" + JSON.stringify(connection));
-                        request.send(JSON.stringify(connection));
-                    }
-                    else {
-                        console.log("connection :" + JSON.stringify(connection));
-                    }
+                        console.log("connection added :" + JSON.stringify(connection));
                 }
             }
         }
@@ -516,15 +449,15 @@ function onResponse(response) {
 browser.runtime.onMessage.addListener((msg) => {
     /* get_hdrs  */
     if (msg.type === "get_hdrs") {
+        let hdrs = [];
         const requestHandle = requests.find(({ id }) => id === msg.requestId);
         if (requestHandle === undefined) {
             // why are we here without a request for this requestId?
             console.error("No request for id: " + eventDetails.requestId + " in get_hdrs!!!");
         }
         else {
-            hdrs = requestHandle.globalHdrs;
+            hdrs.push({ name: "url", value: requestHandle.url4Popup });
         }
-        requestHandle.globalHdrs = [];
         return Promise.resolve(hdrs);
     }
 
@@ -536,7 +469,7 @@ browser.runtime.onMessage.addListener((msg) => {
 
     // set_user_selection
     if (msg.type === "set_user_selection") {
-        state = "add_connection"
+        state = "addMainConnection"
         const requestHandle = requests.find(({ id }) => id === msg.requestId);
         if (requestHandle === undefined) {
             // why are we here without a request for this requestId?
@@ -545,30 +478,12 @@ browser.runtime.onMessage.addListener((msg) => {
         else {
                 // This is the request for the get main_frame
             requestHandle.userSelection = msg.response;
-            if (requestHandle.statusCode != "ExternalHost") {
-                message = {
-                    state: state,
-                    dataIn: [{
-                        tabId: requestHandle.tabId,
-                        destinationIp: requestHandle.destinationIp,
-                        destinationPort: requestHandle.destinationPort,
-                        userSelection: requestHandle.userSelection,
-                        epochTime: requestHandle.timeStamp,
-                        completedIp: requestHandle.completedIp,
-                        requestId: requestHandle.id,
-                        originalDestIp: requestHandle.originalDestIp,
-                        extendedData: requestHandle.extendedData,
-                        FirefoxPID: FirefoxPID,
-                        os: os,
-                        ConnectionTry : 0,
-                        originUrl : typeof requestHandle.originUrl === 'undefined'? '': requestHandle.originUrl
-                    }],
-                    dataOut: [],
-                    optionsSendWith: optionsSendWith,
-                    exitMessage: ""
-                };
-                callNative(message);
-            }
+            message = {
+                state: state,
+                dataIn: requestHandle,
+                logFile : logFile
+            };
+            callNative(message);
         }
         return Promise.resolve(true);
     }
@@ -663,12 +578,3 @@ function deleteRequest(requestId) {
         result = requests.findIndex(({ id }) => id === requestId);
     }
 }
-
-// Local Storage
-//set
-// browser.storage.local.set({ variable: variableInformation });
-//get
-//browser.storage.local.get(['variable'], (result) => {
-//let someVariable = result.variable;
-  // Do something with someVariable
-//});
