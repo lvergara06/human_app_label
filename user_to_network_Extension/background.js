@@ -23,7 +23,7 @@
 let targetPage = "<all_urls>"; // Which pages trigger the dialog box
 
 let globalHeaders = [];    // Used to pass message to popup window
-let DEBUG = "ON";
+let DEBUG = "OFF";    //Turn to "ON" for messages
 let optionsExtendedWith = "";
 let FirefoxPID = "";
 let logFile = "";
@@ -104,7 +104,6 @@ function logOnBeforeRequest(eventDetails) {
     if (eventDetails.type.toLowerCase() === "main_frame" && eventDetails.method.toLowerCase() === "get") {
         // For get main_frame types we assume the originUrl is themselves
         requestHandle.originUrl = eventDetails.url;
-
         // Save url to send to popup
         requestHandle.url4Popup = eventDetails.url;
     }
@@ -306,9 +305,11 @@ async function logOnCompleted(eventDetails) {
             logFile : logFile
         }   
         callNative(message);
+        // Set to be deleted from request array
+        requestHandle.requestStatus = "Logged" // set to delete
 
         if (eventDetails.method.toLowerCase() === "get" && eventDetails.type.toLowerCase() === "main_frame") {
-            requestHandle.statusCode = "GetMain";
+            requestHandle.requestStatus = "GetMain";
             // Call pop up
             try {
                     // pop up basics:
@@ -328,6 +329,11 @@ async function logOnCompleted(eventDetails) {
         }
     }
 
+    // Remove from requests if logged, except GetMain connections
+    if(requestHandle.requestStatus === "Logged")
+    {
+        deleteRequest(requestHandle.id);
+    }
     // Get event details?
     logEvent("Completed", eventDetails, requestHandle);
 }

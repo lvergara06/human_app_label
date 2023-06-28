@@ -329,7 +329,7 @@ try:
             loop = 1
         
         i = 0
-        while i < loop:
+        while i < loop and not found:
             with open(work_file, 'r') as workF:
                     # We're looking for matches on destination ip, port, pid
                 for line in workF:
