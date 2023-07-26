@@ -286,7 +286,38 @@ try:
 
         logEvent(receivedMessage['state'], receivedMessage['dataIn'], responseMessage['dataOut'], responseMessage['exitMessage'], logFile)
         return sendMessage(encodeMessage(responseMessage))
-    
+  
+    def add_user_selection_connection(receivedMessage):
+        responseMessage = {}
+        responseMessage['state'] = receivedMessage['state']
+        responseMessage['dataOut'] = []
+        responseMessage['exitMessage'] = ""
+        FirefoxPID = receivedMessage['dataIn']['FirefoxPID']
+        requestId = receivedMessage['dataIn']['id']
+        logFile = receivedMessage['logFile']
+        timestamp = timeStamp
+        output_file = f"{outDir}/match.{FirefoxPID}.{requestId}.{timestamp}.out" 
+        epochTime = receivedMessage['dataIn']['sendHeadersTimeStamp']
+        utc_time = datetime.datetime.utcfromtimestamp(epochTime/1000.0)
+        utcRead = utc_time.strftime('%Y-%m-%d %H:%M:%S')
+        userSelection = receivedMessage['dataIn']['userSelection']
+        destinationIp = receivedMessage['dataIn']['destinationIp']
+        destinationPort = receivedMessage['dataIn']['destinationPort']
+        errorMsg = ""
+
+
+        connection = {}
+        connection['destinationIp'] = destinationIp
+        connection['destinationPort'] = destinationPort
+        connection['epochTime'] = epochTime
+        connection['userSelection'] = userSelection
+        connection['date'] = utcRead
+        responseMessage['dataOut'].append(connection)
+        add_connection(connection, output_file, "json") 
+        responseMessage['exitMessage'] = errorMsg
+        logEvent(receivedMessage['state'], receivedMessage['dataIn'], responseMessage['dataOut'], responseMessage['exitMessage'], logFile)
+        return sendMessage(encodeMessage(responseMessage))
+
     # A main connection consists of a user selection
     # We will want to take a diff of before and after snap to find new netstat rows
     # From those we will look for a match on destination ip, port, pid 
@@ -418,6 +449,8 @@ try:
             netstat_to_file(receivedMessage);
         elif receivedMessage['state'] == "addMainConnection":
             add_main_connection(receivedMessage);
+        elif receivedMessage['state'] == "addUserSelectionConnection":
+            add_user_selection_connection(receivedMessage);
         else :
             sendMessage(encodeMessage("Invalid State"))
 except Exception as e:

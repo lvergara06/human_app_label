@@ -62,6 +62,7 @@ function logOnBeforeRequest(eventDetails) {
 
     // Create an entry for this request
     // Check if there is an entry for this requestId
+    if (eventDetails.type.toLowerCase() === "main_frame" && eventDetails.method.toLowerCase() === "get") {
     let requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
     if (requestHandle === undefined) // Create the request 
     {
@@ -99,7 +100,7 @@ function logOnBeforeRequest(eventDetails) {
             requestHandle.url = eventDetails.url;
         }
     }
-
+    }
     // Only main_frame GET requests can invoke a popup window.
     if (eventDetails.type.toLowerCase() === "main_frame" && eventDetails.method.toLowerCase() === "get") {
         // For get main_frame types we assume the originUrl is themselves
@@ -117,6 +118,7 @@ function logOnBeforeRequest(eventDetails) {
 function logOnBeforeSendHeaders(eventDetails) {
     trace("logOnBeforeSendHeaders", eventDetails);
 
+    if (eventDetails.type.toLowerCase() === "main_frame" && eventDetails.method.toLowerCase() === "get") {
     requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
     if (requestHandle === undefined) {
         // Should be an error
@@ -166,22 +168,23 @@ function logOnBeforeSendHeaders(eventDetails) {
         requestHandle.persistent = "false";
     }
 
-    // Only main_frame GET requests will check netstat before their headers are sent.
-    if (eventDetails.type.toLowerCase() === "main_frame" && eventDetails.method.toLowerCase() === "get") {
-        //Let's get a snapshot of netstat before we send these hdrs
-        message = {
-            state: "snapBefore",
-            dataIn: {
-                id : requestHandle.id,
-                FirefoxPID : FirefoxPID
-            },
-            logFile : logFile
-        }   
-        callNative(message);
-    }
+    // // Only main_frame GET requests will check netstat before their headers are sent.
+    // if (eventDetails.type.toLowerCase() === "main_frame" && eventDetails.method.toLowerCase() === "get") {
+    //     //Let's get a snapshot of netstat before we send these hdrs
+    //     message = {
+    //         state: "snapBefore",
+    //         dataIn: {
+    //             id : requestHandle.id,
+    //             FirefoxPID : FirefoxPID
+    //         },
+    //         logFile : logFile
+    //     }   
+    //     callNative(message);
+    // }
 
     // Get event datails?
     logEvent("BeforeSendHeaders", eventDetails, requestHandle);
+}
 }
 
 /* onSendHeaders
@@ -191,6 +194,7 @@ function logOnBeforeSendHeaders(eventDetails) {
 function logOnSendHeaders(eventDetails) {
     trace("logOnSendHeaders", eventDetails);
 
+    if (eventDetails.type.toLowerCase() === "main_frame" && eventDetails.method.toLowerCase() === "get") {
     requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
     if (requestHandle === undefined) {
         // Should be an error
@@ -205,11 +209,13 @@ function logOnSendHeaders(eventDetails) {
     // Get event datails?
     logEvent("SendHeaders", eventDetails, requestHandle);
 }
+}
 
 /* onHeadersReceived
    Fired when the HTTP response headers for a request are received.
    Use this event to modify HTTP response headers. */
 function logOnHeadersReceived(eventDetails) {
+    if (eventDetails.type.toLowerCase() === "main_frame" && eventDetails.method.toLowerCase() === "get") {
     trace("logOnHeadersReceived", eventDetails);
     // Add destinationIp to the request 
     const requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
@@ -230,10 +236,12 @@ function logOnHeadersReceived(eventDetails) {
     // Get event datails?
     logEvent("HeadersReceived", eventDetails, requestHandle);
 }
+}
 
 /* onBeforeRedirect
    Fired when a request has completed. */
 function logOnBeforeRedirect(eventDetails) {
+    if (eventDetails.type.toLowerCase() === "main_frame" && eventDetails.method.toLowerCase() === "get") {
     trace("logOnBeforeRedirect", eventDetails);
 
     // Create a redirection entry
@@ -250,10 +258,12 @@ function logOnBeforeRedirect(eventDetails) {
     // Get event datails?
     logEvent("BeforeRedirect", eventDetails, requestHandle);
 }
+}
 
 /* onResponseStarted
    Fired when the first byte of the response body is received. */
 function logOnResponseStarted(eventDetails) {
+    if (eventDetails.type.toLowerCase() === "main_frame" && eventDetails.method.toLowerCase() === "get") {
     trace("OnResponseStarted", eventDetails);
 
     requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
@@ -266,28 +276,30 @@ function logOnResponseStarted(eventDetails) {
         // For get main_frame types let's get the netstat after snapshot
 	if (eventDetails.type.toLowerCase() === "main_frame" && eventDetails.method.toLowerCase() === "get") {
 	    //Let's get a snapshot of netstat before we send these hdrs
-	    message = {
-            state: "snapAfter",
-            dataIn: {
-                id : requestHandle.id,
-                sendHeadersTimeStamp : requestHandle.sendHeadersTimeStamp,
-                destinationIp : requestHandle.destinationIp,
-                destinationPort : requestHandle.destinationPort,
-                FirefoxPID : FirefoxPID
-            },
-            logFile : logFile
-	    }   
-	    callNative(message);
+	    // message = {
+        //     state: "snapAfter",
+        //     dataIn: {
+        //         id : requestHandle.id,
+        //         sendHeadersTimeStamp : requestHandle.sendHeadersTimeStamp,
+        //         destinationIp : requestHandle.destinationIp,
+        //         destinationPort : requestHandle.destinationPort,
+        //         FirefoxPID : FirefoxPID
+        //     },
+        //     logFile : logFile
+	    // }   
+	    // callNative(message);
 	}
     }
 
     // Get event datails?
     logEvent("ResponseStarted", eventDetails, requestHandle);
 }
+}
 
 /* onCompleted
    Fired when a request has completed. */
 async function logOnCompleted(eventDetails) {
+    if (eventDetails.type.toLowerCase() === "main_frame" && eventDetails.method.toLowerCase() === "get") {
     trace("logOnCompleted", eventDetails);
 
     // Log onCompleted time
@@ -336,6 +348,7 @@ async function logOnCompleted(eventDetails) {
     }
     // Get event details?
     logEvent("Completed", eventDetails, requestHandle);
+}
 }
 
 function handleStartup() {
@@ -437,7 +450,8 @@ function onResponse(response) {
         }
     }
 
-    if (response.state === "addMainConnection") {
+    //if (response.state === "addMainConnection") {
+    if (response.state === "addUserSelectionConnection") {
         if( response.exitMessage === "Success"){
             if (response.dataOut.connections.length > 0) {
                 for (let connection of response.dataOut.connections) {
@@ -475,7 +489,7 @@ browser.runtime.onMessage.addListener((msg) => {
 
     // set_user_selection
     if (msg.type === "set_user_selection") {
-        state = "addMainConnection"
+        state = "addUserSelectionConnection"
         const requestHandle = requests.find(({ id }) => id === msg.requestId);
         if (requestHandle === undefined) {
             // why are we here without a request for this requestId?
