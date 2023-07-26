@@ -23,7 +23,7 @@
 let targetPage = "<all_urls>"; // Which pages trigger the dialog box
 
 let globalHeaders = [];    // Used to pass message to popup window
-let DEBUG = "OFF";    //Turn to "ON" for messages
+let DEBUG = "ON";    //Turn to "ON" for messages
 let optionsExtendedWith = "";
 let FirefoxPID = "";
 let logFile = "";
@@ -306,7 +306,7 @@ async function logOnCompleted(eventDetails) {
         }   
         callNative(message);
         // Set to be deleted from request array
-        requestHandle.requestStatus = "Logged" // set to delete
+        requestHandle.requestStatus = "Logged"
 
         if (eventDetails.method.toLowerCase() === "get" && eventDetails.type.toLowerCase() === "main_frame") {
             requestHandle.requestStatus = "GetMain";

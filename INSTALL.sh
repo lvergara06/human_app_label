@@ -1,5 +1,18 @@
 #!/bin/bash
 
+# Check if the script is being run with sudo
+if [ "$EUID" -eq 0 ]; then
+  echo "Please DO NOT run this script with sudo or as root."
+  exit 1
+fi
+
+current_user=$(id -un)
+
+if [ "$current_user" == "root" ]; then
+  echo "Please do not run this script as root."
+  exit 1
+fi
+
 # This script creates everything off of tmp directory.
 TMPDIR=/tmp
 
@@ -176,6 +189,34 @@ gsettings set org.gnome.shell favorite-apps "$(gsettings get org.gnome.shell fav
 echo
 echo "Removing regular firefox from favorites"
 gsettings set org.gnome.shell favorite-apps "$(gsettings get org.gnome.shell favorite-apps | sed "s|, 'firefox_firefox.desktop'||" | sed "s|'firefox_firefox.desktop', ||" | sed "s|'firefox_firefox.desktop' ||" | sed "s|'firefox_firefox.desktop']|]|")"
+echo
+echo
+# Adding this user to allow it to run pmacctd without sudo password
+
+# Check if the user is already in sudoers
+if sudo grep -q "^$current_user " /etc/sudoers; then
+  echo "The user $current_user is already in the sudoers file."
+  exit 1
+fi
+
+# Add the user to the sudoers file with permission to run pmacctd without a password prompt
+# Get the path of pmacctd using command substitution
+pmacctdPath=$(which pmacctd)
+
+# Check if pmacctd is installed
+if [ -z "$pmacctdPath" ]; then
+  echo "pmacctd is not installed or not found in the PATH."
+  exit 1
+fi
+
+echo "$current_user ALL=(ALL) NOPASSWD: $pmacctdPath" | sudo tee -a /etc/sudoers
+
+# Check if there are syntax errors in the sudoers file
+if ! sudo visudo -cf /etc/sudoers; then
+  echo "There is a syntax error in the sudoers file. The user has not been added."
+  exit 1
+fi
+echo "The user $current_user has been added to the sudoers file with permission to run pmacctd without a password prompt."
 echo
 echo "firefox_user_to_network Installed"
 

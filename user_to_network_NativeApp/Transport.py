@@ -15,7 +15,7 @@ import struct
 import subprocess
 import os
 from time import sleep
-import getopt
+import argparse
 import datetime
 import csv
 import re
@@ -98,6 +98,7 @@ try:
     # Returns a string for error messages
     def getOptions(options):
         errorMsg = ""
+        opts = []
         
             ## Use all defaults if the linux config file doesn't exist
         if not os.path.exists(linuxConfigFile):
@@ -118,29 +119,50 @@ try:
             with open(linuxConfigFile, 'r') as f:
                 argv = f.readline().split()
             # Parse the options 
-        opts, args = getopt.getopt(argv, 'E:l:j:c:')
-        for o, a in opts:
-                # If list of options for popup
-            if o == "-l":
-                if not os.path.exists(a.strip('"')):
-                    errorMsg += "Error: Could not find options file; {}.Using default popup options: ".format(a)
-                        # All defaults
-                    options.append(('popupOption', 'News'))
-                    options.append(('popupOption', 'Streaming'))
-                    options.append(('popupOption', 'Social Media'))
-                    options.append(('popupOption', 'Rather not say'))
-                else:
-                        # Read in the popup options and add them to the options array
-                    with open(a.strip('"'), 'r') as f:
-                        data = f.readlines()
-                        for line in data:
-                            options.append(('popupOption', line.strip('\n')))
-                # If json file specified
-            if o == "-j":
-                options.append(('jsonFile', a))
-                # If csv file specified
-            if o == "-c":
-                options.append(('csvFile', a))
+        parser = argparse.ArgumentParser()
+        parser.add_argument('-E')
+        parser.add_argument('-l', dest='options_file')
+        parser.add_argument('-j', dest='json_file')
+        parser.add_argument('-c', dest='csv_file')
+        args, unknown_args = parser.parse_known_args(argv)
+
+        #invalid_opts = [arg for arg in argv if arg not in unknown_args]
+
+        # If list of options for popup
+        if args.options_file:
+            options_file = args.options_file.strip('"')
+            if not os.path.exists(options_file):
+                #invalid_opts.append("-l")
+                # Using default popup options
+                options.extend([
+                    ('popupOption', 'News'),
+                    ('popupOption', 'Streaming'),
+                    ('popupOption', 'Social Media'),
+                    ('popupOption', 'Rather not say')
+                ])
+            else:
+                # Read in the popup options and add them to the options array
+                with open(options_file, 'r') as f:
+                    data = f.readlines()
+                    options.extend(('popupOption', line.strip('\n')) for line in data)
+
+        # If json file specified
+        if args.json_file:
+            json_file = args.json_file.strip('"')
+            if not os.path.exists(json_file):
+                #invalid_opts.append("-j")
+                pass
+            else:
+                options.append(('jsonFile', json_file))
+
+        # If csv file specified
+        if args.csv_file:
+            csv_file = args.csv_file.strip('"')
+            if not os.path.exists(csv_file):
+                #invalid_opts.append("-c")
+                pass
+            else:
+                options.append(('csvFile', csv_file))
 
             # If the json file or csv file are not specified then use the defaults for these
         if not any('jsonFile' in i for i in options):
