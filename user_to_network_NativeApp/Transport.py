@@ -8,6 +8,9 @@
 ######################################################################
 # Change Log:
 # 06/26/2023   Luis Vergara      Use snapshots to find netstat matches
+# 08/02/2023   Luis Vergara      Rolling back the snapshot idea. It takes
+#                                a lof of power and we are going to match
+#                                pmacctd based on dest ip and port.
 ######################################################################
 import sys
 import json
@@ -286,38 +289,7 @@ try:
 
         logEvent(receivedMessage['state'], receivedMessage['dataIn'], responseMessage['dataOut'], responseMessage['exitMessage'], logFile)
         return sendMessage(encodeMessage(responseMessage))
-  
-    def add_user_selection_connection(receivedMessage):
-        responseMessage = {}
-        responseMessage['state'] = receivedMessage['state']
-        responseMessage['dataOut'] = []
-        responseMessage['exitMessage'] = ""
-        FirefoxPID = receivedMessage['dataIn']['FirefoxPID']
-        requestId = receivedMessage['dataIn']['id']
-        logFile = receivedMessage['logFile']
-        timestamp = timeStamp
-        output_file = f"{outDir}/match.{FirefoxPID}.{requestId}.{timestamp}.out" 
-        epochTime = receivedMessage['dataIn']['sendHeadersTimeStamp']
-        utc_time = datetime.datetime.utcfromtimestamp(epochTime/1000.0)
-        utcRead = utc_time.strftime('%Y-%m-%d %H:%M:%S')
-        userSelection = receivedMessage['dataIn']['userSelection']
-        destinationIp = receivedMessage['dataIn']['destinationIp']
-        destinationPort = receivedMessage['dataIn']['destinationPort']
-        errorMsg = ""
-
-
-        connection = {}
-        connection['destinationIp'] = destinationIp
-        connection['destinationPort'] = destinationPort
-        connection['epochTime'] = epochTime
-        connection['userSelection'] = userSelection
-        connection['date'] = utcRead
-        responseMessage['dataOut'].append(connection)
-        add_connection(connection, output_file, "json") 
-        responseMessage['exitMessage'] = errorMsg
-        logEvent(receivedMessage['state'], receivedMessage['dataIn'], responseMessage['dataOut'], responseMessage['exitMessage'], logFile)
-        return sendMessage(encodeMessage(responseMessage))
-
+    
     # A main connection consists of a user selection
     # We will want to take a diff of before and after snap to find new netstat rows
     # From those we will look for a match on destination ip, port, pid 
@@ -326,109 +298,35 @@ try:
         responseMessage['state'] = receivedMessage['state']
         responseMessage['dataOut'] = []
         responseMessage['exitMessage'] = ""
-        timestamp = timeStamp
         FirefoxPID = receivedMessage['dataIn']['FirefoxPID']
         logFile = receivedMessage['logFile']
-        requestId = receivedMessage['dataIn']['id']
-        before_file = ""
-        after_file = ""
-        diff_file = f"{snapsDir}/snapDiff.{FirefoxPID}.{requestId}.{timestamp}.out"
-        work_file = ""
-        output_file = f"{outDir}/match.{FirefoxPID}.{requestId}.{timestamp}.out"
         epochTime = receivedMessage['dataIn']['sendHeadersTimeStamp']
         userSelection = receivedMessage['dataIn']['userSelection']
         originUrl = receivedMessage['dataIn']['originUrl']
         destinationIp = receivedMessage['dataIn']['destinationIp']
         destinationPort = receivedMessage['dataIn']['destinationPort']
+        host = receivedMessage['dataIn']['host']
         errorMsg = ""
+        output_file = f"{outDir}/connections.{FirefoxPID}.out"
 
         directory = outDir
         os.makedirs(directory, exist_ok=True)
-
-            # Look for before and after snap file
-        for filename in os.listdir(snapsDir):
-            if re.match(f"snapBefore.{FirefoxPID}.{requestId}.*.out", filename):
-                before_file = snapsDir+"/"+filename
-            if re.match(f"snapAfter.{FirefoxPID}.{requestId}.*.out", filename):
-                after_file = snapsDir+"/"+filename
         
-            # Check the input files they are needed
-        if before_file == "":
-            errorMsg += f"ERROR: No before_file found in {snapsDir}:"
-        if after_file == "":
-            errorMsg += f"ERROR: No after_file found in {snapsDir}:"
+            # Add this connection and log
+        utc_time = datetime.datetime.utcfromtimestamp(epochTime/1000.0)
+        utcRead = utc_time.strftime('%Y-%m-%d %H:%M:%S')
+        connection = {}
+        connection['destinationIp'] = destinationIp
+        connection['destinationPort'] = destinationPort
+        connection['pid'] = FirefoxPID
+        connection['epochTime'] = epochTime
+        connection['userSelection'] = userSelection
+        connection['originUrl'] = originUrl
+        connection['date'] = utcRead
+        connection['host'] = host
+        responseMessage['dataOut'].append(connection)
+        add_connection(connection, output_file, "json") 
 
-            # Let's see if there is any difference between before and after
-        with open(before_file, 'r') as before, open(after_file, 'r') as after:
-            after_lines = after.readlines()
-            before_lines = before.readlines()
-            difference = set(after_lines) - set(before_lines)
-
-                #Check for diff
-            if difference:
-                with open(diff_file, 'w') as diff:
-                    diff.writelines(difference)
-                    errorMsg += f"Log: Using diff_file to find netstat connection.:"
-                    work_file = diff_file
-            else:
-                errorMsg += f"Log: Using after_file to find netstat connection.:"
-                work_file = after_file
-        
-        found = False
-            # If we can't find the connection in a diff we will also look in after_file
-        if work_file == diff_file:
-            loop = 2
-        else:
-            loop = 1
-        
-        i = 0
-        while i < loop and not found:
-            with open(work_file, 'r') as workF:
-                    # We're looking for matches on destination ip, port, pid
-                for line in workF:
-                    netstatLineSplit = line.split()
-                    if len(netstatLineSplit) == 7 :  # Picks out the blanks
-                        netstatLineProtocol = netstatLineSplit[0]
-                        netstatLineDestinationIP = netstatLineSplit[4].split(':')[0]
-                        netstatLineDestinationPort = netstatLineSplit[4].split(':')[1]
-                        netstatLinePID = netstatLineSplit[6].split('/')[0]
-                        netstatLineSourceIP = netstatLineSplit[3].split(':')[0]
-                        netstatLineSourcePort = netstatLineSplit[3].split(':')[1]
-                        netstatLineState = netstatLineSplit[5]
-                        if (netstatLineDestinationIP == destinationIp and
-                            netstatLineDestinationPort == destinationPort and
-                            netstatLinePID == FirefoxPID):
-                                # Add this connection and log
-                            errorMsg += (f"Log: Match found on " 
-                                            f"{netstatLineProtocol} {netstatLineState} " 
-                                            f"{netstatLineDestinationIP}:{netstatLineDestinationPort} " 
-                                            f"{netstatLinePID}." 
-                                            f" Output: {output_file}")
-                            utc_time = datetime.datetime.utcfromtimestamp(epochTime/1000.0)
-                            utcRead = utc_time.strftime('%Y-%m-%d %H:%M:%S')
-                            connection = {}
-                            connection['protocol'] = netstatLineProtocol
-                            connection['sourceIp'] = netstatLineSourceIP
-                            connection['sourcePort'] = netstatLineSourcePort
-                            connection['destinationIp'] = netstatLineDestinationIP
-                            connection['destinationPort'] = netstatLineDestinationPort
-                            connection['status'] = netstatLineState
-                            connection['pid'] = netstatLinePID
-                            connection['epochTime'] = epochTime
-                            connection['userSelection'] = userSelection
-                            connection['originUrl'] = originUrl
-                            connection['date'] = utcRead
-                            responseMessage['dataOut'].append(connection)
-                            add_connection(connection, output_file, "json") 
-                            found = True
-            i += 1
-                # Swap out the file we look in
-            if not found and work_file == diff_file:
-                work_file = after_file
-            # If we looked in diff and after file and still not found log that as an error
-        if not found:
-            errorMsg += f"ERROR: connection NOT found - {destinationIp}:{destinationPort} pid - {FirefoxPID} " \
-                        f" in {work_file}.:"
         responseMessage['exitMessage'] = errorMsg
         logEvent(receivedMessage['state'], receivedMessage['dataIn'], responseMessage['dataOut'], responseMessage['exitMessage'], logFile)
         return sendMessage(encodeMessage(responseMessage))
@@ -449,8 +347,6 @@ try:
             netstat_to_file(receivedMessage);
         elif receivedMessage['state'] == "addMainConnection":
             add_main_connection(receivedMessage);
-        elif receivedMessage['state'] == "addUserSelectionConnection":
-            add_user_selection_connection(receivedMessage);
         else :
             sendMessage(encodeMessage("Invalid State"))
 except Exception as e:
