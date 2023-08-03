@@ -36,7 +36,7 @@
 let targetPage = "<all_urls>"; // Which pages trigger the dialog box
 
 let globalHeaders = [];    // Used to pass message to popup window
-let DEBUG = "";    //Turn to "ON" for messages
+let DEBUG = "ON";    //Turn to "ON" for messages
 let optionsExtendedWith = "";
 let FirefoxPID = "";
 let logFile = "";
@@ -61,11 +61,17 @@ let requests = [];               // Requests made so far
 // completedTime: "", from Completed Details
 // }
 let getMainFrameRequests = [];      // List of get main_frame requests so far. This keeps us from multiple pop-ups
+// id
 // host 
 // tabId
 // url
 // userSelection
-
+let externalHosts = [];       // List of host request that are triggered hiden from the user
+// id
+// host
+// tabId
+// url
+// class
 
 
 /*****************************************************************
@@ -336,6 +342,38 @@ async function logOnCompleted(eventDetails) {
                 }
             }
         }
+        else{
+            // Let's make sure the host on this request matches the user's intended host
+            let getHostHandle = getMainFrameRequests.find(({ host }) => host === requestHandle.host);
+            if (getHostHandle === undefined) // Not an intended hsot
+            {
+                requestHandle.requestStatus = "ExternalHost";
+                // This is a request from a host that isn't the users intended host
+                // Now let's check if the external host is already known
+                let getExternalHostHandle = externalHosts.find(({ host }) => host === requestHandle.host);
+                if (getExternalHostHandle === undefined){
+                    // This is the first time encountering this host
+                    newExternalHost = {
+                        id: requestHandle.id,
+                        url: requestHandle.url,
+                        tabId: requestHandle.tabId,
+                        host: requestHandle.host
+                    };
+
+                    externalHosts.push(newExternalHost);
+
+                    // I want to add it to connections
+                    state = "addMainConnection"
+                    requestHandle.userSelection = "ExternalHost";
+                    message = {
+                        state: state,
+                        dataIn: requestHandle,
+                        logFile : logFile
+                    };
+                    callNative(message);
+                }
+            }
+        }
     }
 
     // Remove from requests if logged, except GetMain connections
@@ -507,6 +545,9 @@ browser.runtime.onMessage.addListener((msg) => {
                 // why are we here without a getMainFrameRequest for this host?
                 console.error("No getMainFrameRequest struct for host: " + requestHandle.host + " in set_user_selection.");                
             }
+            else {
+                getMainFrameRequestHandle.userSelection = msg.response;
+            }
         }
         return Promise.resolve(true);
     }
@@ -569,6 +610,7 @@ browser.tabs.onCreated.addListener(logCreatedTab);
  ****************************************************************/
 // Log Errors
 function onError(error) {
+    console.log("In OnError");
     console.log(`Error: ${error}`);
 }
 
@@ -585,7 +627,8 @@ function trace(source, eventDetails) {
         console.log("Entrace to " + source);
         console.log(eventDetails);
         console.log(requests);
-        console.log(getMainFrameRequests)
+        console.log(getMainFrameRequests);
+        console.log(externalHosts);
     }
 }
 

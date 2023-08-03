@@ -94,7 +94,7 @@ try:
         elif filetype == "csv":
             with open(filename, 'a' if answ else 'w', newline='') as filetypeF:
                 writer = csv.writer(filetypeF)
-                writer.writerow(connection.values)
+                writer.writerow(connection.values())
 
     # Retrieves options from config file or uses defaults 
     # Works on the provided array = []
@@ -307,7 +307,8 @@ try:
         destinationPort = receivedMessage['dataIn']['destinationPort']
         host = receivedMessage['dataIn']['host']
         errorMsg = ""
-        output_file = f"{outDir}/connections.{FirefoxPID}.out"
+        output_file_json = f"{outDir}/connections.{FirefoxPID}.json"
+        output_file_csv = f"{outDir}/connections.{FirefoxPID}.csv"
 
         directory = outDir
         os.makedirs(directory, exist_ok=True)
@@ -325,7 +326,8 @@ try:
         connection['date'] = utcRead
         connection['host'] = host
         responseMessage['dataOut'].append(connection)
-        add_connection(connection, output_file, "json") 
+        add_connection(connection, output_file_json, "json") 
+        add_connection(connection, output_file_csv, "csv")
 
         responseMessage['exitMessage'] = errorMsg
         logEvent(receivedMessage['state'], receivedMessage['dataIn'], responseMessage['dataOut'], responseMessage['exitMessage'], logFile)

@@ -92,6 +92,12 @@ else
     pmacctd_out_default="/opt/firefox/user_to_network/pmacct/logs/pmacctd.out"
     pmacctdFile=""
     pmacctdOutFile=""
+    # Check if the folder exists
+    if [ ! -d "/opt/firefox/user_to_network/pmacct/logs" ]
+    then
+        # Create the folder if it doesn't exist
+        mkdir "/opt/firefox/user_to_network/pmacct/logs"
+    fi
 
     echo "Looking in $file_path for pmacctd file path"
 
@@ -156,6 +162,13 @@ else
     nfacctd_out_default="/opt/firefox/user_to_network/pmacct/logs/nfacctd.out"
     nfacctdFile=""
     nfacctdOutFile=""
+
+    # Check if the folder exists
+    if [ ! -d "/opt/firefox/user_to_network/pmacct/logs" ] 
+    then
+        # Create the folder if it doesn't exist
+        mkdir "/opt/firefox/user_to_network/pmacct/logs"
+    fi
 
     echo "Looking in $file_path for nfacctd file path"
  
@@ -269,8 +282,8 @@ echo
 ## Executing
 
 # Start a delay before auto running merge.py 
-echo "sleep 900"
-sleep 3
+echo "sleep 1 min"
+sleep 60
 
 ### End
 
@@ -292,10 +305,10 @@ echo
 
 ### Executing
 # Get current UTC timestamp
-timestamp=$(date -u +"%Y%m%d %H:%M:%S")
+endtimestamp=$(date -u +"%Y%m%d %H:%M:%S")
 
 # Output the UTC timestamp
-echo "end time: $timestamp"
+echo "end time: $endtimestamp"
 
 ### End
 
@@ -306,12 +319,22 @@ echo
 echo 
 
 ###########################################
-## JOBSTEP : 040
+## JOBSTEP : 050
+## Desc    : End pmacctd and nfacctd
+###########################################
+echo "###########################################"
+echo "## JOBSTEP: 040 Started                    "
+echo "###########################################"
+echo
+echo 
+
+###########################################
+## JOBSTEP : 050
 ## Desc    : Merge the Firefox Connections 
 ##           with pmacctd flows.
 ###########################################
 echo "###########################################"
-echo "## JOBSTEP: 040 Started                    "
+echo "## JOBSTEP: 050 Started                    "
 echo "###########################################"
 echo
 echo 
