@@ -157,12 +157,15 @@ install_package "net-tools"
 
 echo
 
-# Clone pmacct repository
-echo "Cloning pmacct"
-install_package "git"
-
 if ! command -v pmacctd &> /dev/null; then
+    # Clone pmacct repository
+    echo "Cloning pmacct"
+    install_package "git"
     echo "pmacctd is not installed. Installing..."
+    echo "Installing dependencies"
+    sudo apt-get install libpcap0.8-dev
+    sudo apt-get install pkg-config m4 libtool automake autoconf
+    #sudo apt-get install libpcap-dev pkg-config libtool autoconf automake make bash libstdc++-dev g++
     git clone https://github.com/pmacct/pmacct.git $TMPDIR/pmacct
     cd $TMPDIR/pmacct
     sudo ./autogen.sh
