@@ -106,11 +106,13 @@ if ps aux | grep -q '[p]macctd'; then
     else
         echo "nfacctd is not running" >> $OutLog
         echo "Exiting..." >> $OutLog
+        echo "nfacctd is not running" | mail lvergara06@gmail.com 
         exit -1
     fi 
 else
     echo "pmacctd is not running" >> $OutLog
     echo "Exiting..." >> $OutLog
+    echo "pmacctd is not running" | mail lvergara06@gmail.com 
     exit -1
 fi 
 ### End
@@ -163,6 +165,8 @@ else
             # 
             flowsBefore=/opt/firefox/user_to_network/pmacct/tmp/flows.before.$CurrentPID.$timestamp.csv
             cp $flowsOutput $flowsBefore >> $OutLog
+        else
+            echo "Could not open flows output: $flowsOutput" >> $OutLog
         fi
     else
         echo "nfacctd file not found or invalid" >> $OutLog

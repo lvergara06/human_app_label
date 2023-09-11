@@ -81,6 +81,7 @@ if [ ! -d "/opt/firefox/user_to_network" ]; then
     sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/connectionsBkp
     sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/logs
     sudo mkdir /opt/firefox/user_to_network/logs
+    sudo mkdir /opt/firefox/user_to_network/pmacct/flows
     sudo mkdir /opt/firefox/user_to_network/pmacct/tmp
     sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/mergedOutput
     sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/work

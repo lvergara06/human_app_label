@@ -51,6 +51,7 @@ with open(connectionsFile, 'r') as source1,\
             local_time = datetime.strptime(flowStartTime, "%Y-%m-%d %H:%M:%S.%f")
 
         # Get the local timezone
+            # TODO: MAKE THIS NOT NEEDED
             local_tz = pytz.timezone('America/Denver')
 
         # Localize the datetime object to the local timezone
