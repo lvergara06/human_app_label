@@ -7,10 +7,7 @@ installed correctly.
 
 2) Open /opt/firefox/user_to_network/user_to_network_NativeApp/Transport.conf to set the following options.
 (The options will default if not specified)
--d /path/to/pmacctd.conf file.            Default /opt/firefox/user_to_network/pmacct/pmacctd.conf
--do /path/to/pmacctd out file.            Default /opt/firefox/user_to_network/pmacct/logs/pmacctd
 -n /path/to/nfacctd.conf file.            Default /opt/firefox/user_to_network/pmacct/nfacctd.conf
--no /path/to/nfacctd out file.            Default /opt/firefox/user_to_network/pmacct/logs/nfacctd
 -E Extended information -                 Default is to only get the minimum amount of data from the extension. If you want all the request headers and responses use -E 'All.
                                           Use a comma delimited list of the following details.
     'All' - As much information about request headers possible
@@ -22,6 +19,11 @@ installed correctly.
     'ResponseStarted'     -- event details when response is received
     'Completed'           -- event details on request completion
 -l /path/to/options/file                 Default /opt/firefox/user_to_network/user_to_network_NativeApp/options.txt
--j /path/to/output/JSON/file             Default /opt/firefox/user_to_network/out/connections.json
--c /path/to/output/CSV/file              Default /opt/firefox/user_to_network/out/connections.csv
+-j /path/to/output/JSONfile             Default /opt/firefox/user_to_network/user_to_network_NativeApp/output/connections.json
+-c /path/to/output/CSVfile              Default /opt/firefox/user_to_network/user_to_network_NativeApp/output/connections.csv
 
+3) Make sure the pmacctd and nfacctd are running.
+4) Double click on the Blue Firefox icon on your favorites bar.
+5) Browse the internet as usual.
+6) After closing all browser windows you need to wait 5 minutes for pmacctd to finish writing.
+7) Look in /opt/firefox/user_to_network/user_to_network_NativeApp/mergedOutput for the latest file. That should have your output.
