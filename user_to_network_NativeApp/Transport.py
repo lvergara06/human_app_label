@@ -209,7 +209,9 @@ try:
                 break
         split = ' '.join(mainPID.split()).split(' ')        
             # Add the firefox main pid to the response
-        responseMessage['dataOut'].append(("FirefoxPID", split[1]))
+        responseMessage['dataOut'].append(("FirefoxPID", split[1]))        # -l : Options file
+        # -j : JSON file
+        # -c : CSV file
 
             # Return a log file
         logFile = f"{logsDir}/Transport." + split[1] + ".log"
@@ -307,8 +309,8 @@ try:
         destinationPort = receivedMessage['dataIn']['destinationPort']
         host = receivedMessage['dataIn']['host']
         errorMsg = ""
-        output_file_json = f"{outDir}/connections.{FirefoxPID}.json"
-        output_file_csv = f"{outDir}/connections.{FirefoxPID}.csv"
+        output_file_json = f"{outDir}/connections.json"
+        output_file_csv = f"{outDir}/connections.csv"
 
         directory = outDir
         os.makedirs(directory, exist_ok=True)

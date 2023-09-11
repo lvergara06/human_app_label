@@ -1,0 +1,27 @@
+-- Scope: The scope of this document is to go over the steps to quick start Firefox with user_to_network extension
+-- Background: This extension runs with a lot of native support. Which means that a lot of things need to be configured
+-- on the computer that is running it or else you won't get what you expect.
+
+1) Run Install.sh to download all the needed stuff. Any issues on the install are bound to show up later. Be sure everything is
+installed correctly.
+
+2) Open /opt/firefox/user_to_network/user_to_network_NativeApp/Transport.conf to set the following options.
+(The options will default if not specified)
+-d /path/to/pmacctd.conf file.            Default /opt/firefox/user_to_network/pmacct/pmacctd.conf
+-do /path/to/pmacctd out file.            Default /opt/firefox/user_to_network/pmacct/logs/pmacctd
+-n /path/to/nfacctd.conf file.            Default /opt/firefox/user_to_network/pmacct/nfacctd.conf
+-no /path/to/nfacctd out file.            Default /opt/firefox/user_to_network/pmacct/logs/nfacctd
+-E Extended information -                 Default is to only get the minimum amount of data from the extension. If you want all the request headers and responses use -E 'All.
+                                          Use a comma delimited list of the following details.
+    'All' - As much information about request headers possible
+    'BeforeRequest'       -- event details before request is made
+    'BeforeSendHeaders'   -- event details before request headers are sent
+    'SendHeaders'         -- event details when request headers are sent
+    'HeadersReceived'     -- event details when response headers received
+    'BeforeRedirect'      -- event details in case of redirection caused by response headers
+    'ResponseStarted'     -- event details when response is received
+    'Completed'           -- event details on request completion
+-l /path/to/options/file                 Default /opt/firefox/user_to_network/user_to_network_NativeApp/options.txt
+-j /path/to/output/JSON/file             Default /opt/firefox/user_to_network/out/connections.json
+-c /path/to/output/CSV/file              Default /opt/firefox/user_to_network/out/connections.csv
+

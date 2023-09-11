@@ -7,6 +7,7 @@ connectionsFile = ""
 flowFile = ""
 
 ## Max difference between connection epoch and pcmacct epoch
+## TODO: Make the timeWindow an options in Transport.py
 timeWindow = 1000
 
 ## Get args
@@ -68,16 +69,12 @@ with open(connectionsFile, 'r') as source1,\
         connections = source1.readlines()
         for connection in connections:
             splitConnection = connection.split(',')
-            connectionSourceIp = splitConnection[1]
-            connectionSourcePort = splitConnection[2]
-            connectionDestinationIp = splitConnection[3]
-            connectionDestinationPort = splitConnection[4]
-            connectionUserSelection = splitConnection[7]
-            connectionEpoch = splitConnection[8]
+            connectionDestinationIp = splitConnection[0]
+            connectionDestinationPort = splitConnection[1]
+            connectionUserSelection = splitConnection[4]
+            connectionEpoch = splitConnection[3]
             #print("connection:" + connectionSourceIp + " " +  connectionDestinationIp + " " + connectionSourcePort + " " + connectionDestinationPort + " " + connectionEpoch)
-            if flowSourceIp == connectionSourceIp and \
-               flowDestinationIp == connectionDestinationIp and \
-               flowSourcePort == connectionSourcePort and \
+            if flowDestinationIp == connectionDestinationIp and \
                flowDestinationPort == connectionDestinationPort and \
                abs(int(connectionEpoch) - flowEpoch) < timeWindow:
                 print(flow + "," + connectionUserSelection)

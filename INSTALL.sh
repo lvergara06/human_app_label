@@ -80,6 +80,10 @@ if [ ! -d "/opt/firefox/user_to_network" ]; then
     sudo rm -rf $TMPDIR/user_to_network
     sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/connectionsBkp
     sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/logs
+    sudo mkdir /opt/firefox/user_to_network/logs
+    sudo mkdir /opt/firefox/user_to_network/pmacct/tmp
+    sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/mergedOutput
+    sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/work
     sudo chmod -R 777 /opt/firefox/user_to_network
     echo "App space created"
 fi
@@ -194,13 +198,6 @@ echo "Removing regular firefox from favorites"
 gsettings set org.gnome.shell favorite-apps "$(gsettings get org.gnome.shell favorite-apps | sed "s|, 'firefox_firefox.desktop'||" | sed "s|'firefox_firefox.desktop', ||" | sed "s|'firefox_firefox.desktop' ||" | sed "s|'firefox_firefox.desktop']|]|")"
 echo
 echo
-# Adding this user to allow it to run pmacctd without sudo password
-
-# Check if the user is already in sudoers
-if sudo grep -q "^$current_user " /etc/sudoers; then
-  echo "The user $current_user is already in the sudoers file."
-  exit 1
-fi
 
 # Add the user to the sudoers file with permission to run pmacctd without a password prompt
 # Get the path of pmacctd using command substitution
@@ -212,7 +209,15 @@ if [ -z "$pmacctdPath" ]; then
   exit 1
 fi
 
+# Adding this user to allow it to run pmacctd without sudo password
+
+# Check if the user is already in sudoers
+if sudo grep -q "^$current_user " /etc/sudoers; then
+  echo "The user $current_user is already in the sudoers file."
+else
 echo "$current_user ALL=(ALL) NOPASSWD: $pmacctdPath" | sudo tee -a /etc/sudoers
+echo "$current_user ALL=(ALL) NOPASSWD: /opt/firefox/user_to_network/user_to_network_Extension/SudoKillPmacctd.sh" | sudo tee -a /etc/sudoers
+fi
 
 # Check if there are syntax errors in the sudoers file
 if ! sudo visudo -cf /etc/sudoers; then
