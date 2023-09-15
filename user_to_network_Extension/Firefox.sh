@@ -46,12 +46,12 @@ echo >> $OutLog
 echo "Checking if firefox extension is running" >> $OutLog
 echo >> $OutLog
 # Check if this already running. Don't run multiple of these
-echo "pgrep -f 'node /usr/local/bin/web-ext' >/dev/null" >> $OutLog
-pgrep -f "node /usr/local/bin/web-ext" 2>/dev/null
-if [[ $? -eq 0 ]]
+echo "pgrep -f 'Firefox.sh' >/dev/null" >> $OutLog
+Count=pgrep -f "Firefox.sh" | wc -l
+if [[ $Count -eq 1 ]]
 then
     #Do nothing
-    echo "Firefox Extension already running web-ext"  >> $OutLog
+    echo "Firefox.sh already running"  >> $OutLog
     exit -1
 fi
 

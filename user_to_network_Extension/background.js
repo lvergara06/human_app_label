@@ -131,6 +131,14 @@ function logOnBeforeRequest(eventDetails) {
         requestHandle.originUrl = eventDetails.url;
         // Save url to send to popup
         requestHandle.url4Popup = eventDetails.url;
+
+        newGetMainFrameRequest = {
+            id: requestHandle.id,
+            url: requestHandle.url4Popup,
+            tabId: requestHandle.tabId,
+            host: requestHandle.host
+        };
+        getMainFrameRequests.push(newGetMainFrameRequest);
     }
 
     logEvent("BeforeRequest", eventDetails, requestHandle);
@@ -305,8 +313,9 @@ async function logOnCompleted(eventDetails) {
             state: "logConnection",
             dataIn: requestHandle,
             logFile : logFile
-        }   
-        callNative(message);
+        } 
+        //LUIS V: TODO: callNative to log connection as a debugging option  
+        //callNative(message);
         // Set to be deleted from request array
         requestHandle.requestStatus = "Logged"
 
@@ -316,14 +325,6 @@ async function logOnCompleted(eventDetails) {
             let getMainFrameRequestHandle = getMainFrameRequests.find(({ host }) => host === requestHandle.host);
             if (getMainFrameRequestHandle === undefined) // Create the request 
             {
-                newGetMainFrameRequest = {
-                    id: requestHandle.id,
-                    url: requestHandle.url4Popup,
-                    tabId: requestHandle.tabId,
-                    host: requestHandle.host
-                };
-                getMainFrameRequests.push(newGetMainFrameRequest);
-
                 // Call pop up
                 try {
                     // pop up basics:
