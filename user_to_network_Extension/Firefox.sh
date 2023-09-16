@@ -6,8 +6,13 @@
 ## Desc : This script runs Firefox Extension
 ##        and merges the output with 
 ##        pmacctd output. 
+## ########################################
+## Luis Vergara 09/10/23 Rework and lazy logs
+##
 ###########################################
-
+CurrentPID=$$
+timestamp=$(date -u +"%Y%m%d%H%M%S")
+OutLog=/opt/firefox/user_to_network/logs/Firefox.$timestamp.log
 ###########################################
 # HELPER FUNCTIONS
 ###########################################
@@ -33,216 +38,171 @@ function extract_string_after_argument {
 }
 
 
+echo "###########################################" >> $OutLog
+echo "## JOBSTEP: 000 Started                    " >> $OutLog
+echo "###########################################" >> $OutLog
+echo >> $OutLog
+echo >> $OutLog
+echo "Checking if firefox extension is running" >> $OutLog
+echo >> $OutLog
+# Check if this already running. Don't run multiple of these
+echo "pgrep -f 'Firefox.sh' >/dev/null" >> $OutLog
+Count=pgrep -f "Firefox.sh" | wc -l
+if [[ $Count -eq 1 ]]
+then
+    #Do nothing
+    echo "Firefox.sh already running"  >> $OutLog
+    exit -1
+fi
+
+echo "###########################################" >> $OutLog
+echo "## JOBSTEP: 000 Finished                   " >> $OutLog
+echo "###########################################" >> $OutLog
+echo >> $OutLog
+echo >> $OutLog
+
 ###########################################
 ## JOBSTEP : 005
 ## Desc    : Get timestamp 
 ###########################################
-echo "###########################################"
-echo "## JOBSTEP: 005 Started                    "
-echo "###########################################"
-echo
-echo 
+echo "###########################################" >> $OutLog
+echo "## JOBSTEP: 005 Started                    " >> $OutLog
+echo "###########################################" >> $OutLog
+echo >> $OutLog
+echo >> $OutLog
 
 ### Executing
 # Get current UTC timestamp
-timestamp=$(date -u +"%Y%m%d %H:%M:%S")
+startTime=$(date -u +"%Y%m%d %H:%M:%S")
 
 # Output the UTC timestamp
-echo "start time: $timestamp"
+echo "start time: $startTime" >> $OutLog
 
 ### End
 
-echo "###########################################"
-echo "## JOBSTEP: 005 Finished                   "
-echo "###########################################"
-echo
-echo 
+echo "###########################################" >> $OutLog
+echo "## JOBSTEP: 005 Finished                   " >> $OutLog
+echo "###########################################" >> $OutLog
+echo >> $OutLog
+echo >> $OutLog
 
 ###########################################
 ## JOBSTEP : 010
 ## Desc    : Check if pmacctd and nfacctd
 ##           are running. 
 ###########################################
-echo "###########################################"
-echo "## JOBSTEP: 010 Started                    "
-echo "###########################################"
-echo
-echo 
+echo "###########################################" >> $OutLog
+echo "## JOBSTEP: 010 Started                    " >> $OutLog
+echo "###########################################" >> $OutLog
+echo >> $OutLog
+echo >> $OutLog
 
-#Flag tells us if we opened pmacctd and nfacctd
-openedPmacctdNfacctd=0
-### Executing
-
-# Starting pmacctd
-# You can specify the pmacctd file to use in Transport.conf or else
-# this job can run pmacctd using some configuration files built into the repository
-# The configuration of the switch could be different. Open the .conf file below to
-# Change the configuration.
-file_path="/opt/firefox/user_to_network/user_to_network_NativeApp/Transport.conf"
-pmacctd_default="/opt/firefox/user_to_network/pmacct/pmacctd.conf"
-pmacctd_out="/opt/firefox/user_to_network/pmacct/logs"
-pmacctdFile=""
-pmacctdOutFile=""
-# Check if the folder exists
-if [ ! -d "/opt/firefox/user_to_network/pmacct/logs" ]
-then
-    # Create the folder if it doesn't exist
-    mkdir "/opt/firefox/user_to_network/pmacct/logs"
-fi
-
-echo "Looking in $file_path for pmacctd file path"
-
-# Check if the Transport.conf file exists
-if [ ! -f "$file_path" ]
-then
-    echo "Transport.conf does not exist"
-    echo "Using default pmacctd location : $pmacctdFile"
-    pmacctdFile="$pmacctd_default"
+## Check that pmacctd is running first
+if ps aux | grep -q '[p]macctd'; then
+    echo "pmacctd is running" >> $OutLog
+    ## Then check that nfacctd is also running
+    if ps aux | grep -q '[n]facctd'; then
+    echo "nfacctd is running" >> $OutLog
+    else
+        echo "nfacctd is not running" >> $OutLog
+        echo "Exiting..." >> $OutLog
+        echo "nfacctd is not running" | mail lvergara06@gmail.com 
+        exit -1
+    fi 
 else
-    # Check if the "-d" argument exists in the file
-    pmacctdFile=$(extract_string_after_argument "-d" "$file_path")
-    # Check if the extracted string is a valid file
-    if [ -n "$pmacctdFile" ] && [ -f "$pmacctdFile" ]
-    then
-        echo "$pmacctdFile is valid"
-        echo "Using pmacctd file: $pmacctdFile"
-    else
-        echo "pmacctd file not found or invalid"
-        pmacctdFile="$pmacctd_default"
-        echo "Using default pmacctd file: $pmacctdFile"
-    fi
-
-    # Check if the "-do" argument exists in the file
-    pmacctdOutFile=$(extract_string_after_argument "-do" "$file_path")
-    # Check if the extracted string is a valid file
-    if [ -n "$pmacctdOutFile" ] && [ -f "$pmacctdOutFile" ]
-    then
-        #echo "$pmacctdOutFile is valid"
-        echo "Using pmacctd out file: $pmacctdOutFile"
-    else
-        echo "pmacctd out file not found or invalid"
-        pmacctdOutFile="$pmacctd_out/pmacctd.out"
-        echo "Using default pmacctd out file: $pmacctdOutFile"
-    fi
-fi
-
-echo "start time : $timestamp" >> "$pmacctdOutFile"
-nohup sudo pmacctd -f "$pmacctdFile" >> "$pmacctdOutFile" &
-pmacctdPid=$!  # Capture the process ID of the last background command
-# Store the PID in a file for future reference if needed
-echo "$pmacctdPid" > "/tmp/pmacctd_pid.txt"
-echo "pmacctd process started with PID: $pmacctdPid"
-echo
-
-echo "Starting nfacctd"
-# You can specify the nfacctd file to use in Transport.conf or else
-# this job can run nfacctd using some configuration files built into the repository.
-# Open the .conf file below to change the configuration.
-file_path="/opt/firefox/user_to_network/user_to_network_NativeApp/Transport.conf"
-nfacctd_default="/opt/firefox/user_to_network/pmacct/nfacctd.conf"
-nfacctd_out="/opt/firefox/user_to_network/pmacct/logs"
-nfacctd_tmp="/opt/firefox/user_to_network/pmacct/tmp"
-nfacctd_flow="/opt/firefox/user_to_network/pmacct/flows"
-nfacctdFile=""
-nfacctdOutFile=""
-
-# Check if the folder exists
-if [ ! -d "/opt/firefox/user_to_network/pmacct/tmp" ] 
-then
-    # Create the folder if it doesn't exist
-    mkdir "/opt/firefox/user_to_network/pmacct/tmp"
-fi
-
-# Check if the folder exists
-if [ ! -d "/opt/firefox/user_to_network/pmacct/flows" ] 
-then
-    # Create the folder if it doesn't exist
-    mkdir "/opt/firefox/user_to_network/pmacct/flows"
-fi
-
-echo "Looking in $file_path for nfacctd file path"
-
-# Check if the Transport.conf file exists
-if [ ! -f "$file_path" ]
-then
-    echo "Transport.conf does not exist"
-    echo "Using default nfacctd location : $nfacctdFile"
-    nfacctdFile="$nfacctd_default"
-else
-    # Check if the "-n" argument exists in the file
-    nfacctdFile=$(extract_string_after_argument "-n" "$file_path")
-    # Check if the extracted string is a valid file
-    if [ -n "$nfacctdFile" ] && [ -f "$nfacctdFile" ]
-    then
-        echo "$nfacctdFile is valid"
-        echo "Using nfacctd file: $nfacctdFile"
-    else
-        echo "nfacctd file not found or invalid"
-        nfacctdFile="$nfacctd_default"
-        echo "Using default nfacctd file: $nfacctdFile"
-    fi
-
-    # Check if the "-no" argument exists in the file
-    nfacctdOutFile=$(extract_string_after_argument "-no" "$file_path")
-    # Check if the extracted string is a valid file
-    if [ -n "$nfacctdOutFile" ] && [ -f "$nfacctdOutFile" ]
-    then
-        #echo "$nfacctdOutFile is valid"
-        echo "Using nfacctd out file: $nfacctdOutFile"
-    else
-        echo "nfacctd out file not found or invalid"
-        nfacctdOutFile="$nfacctd_out/nfacctd.out"
-        echo "Using default nfacctd out file: $nfacctdOutFile"
-    fi
-fi
-
-# Command to run nfacctd -f $nfacctdFile
-# Make a copy of nfacctdFile to nfacctdTmp/nfacctd.<pmacctdPid>.conf
-cp "$nfacctdFile" "$nfacctd_tmp/nfacctd.$pmacctdPid.conf"
-
-# Find the line with "print_output_file: flows.csv" and modify it
-sed -E -i "s#(print_output_file:[[:space:]]*).*#\1$nfacctd_flow/flows.$pmacctdPid.csv#" "$nfacctd_tmp/nfacctd.$pmacctdPid.conf"
-
-# Command to run nfacctd -f $nfacctdFile
-echo "nfacctd -f $nfacctd_tmp/nfacctd.$pmacctdPid.conf >> $nfacctdOutFile 2>&1 &"
-
-# Start nfacctd with nohup and redirect the output to the specified file
-echo "start time : $timestamp" >> "$nfacctdOutFile"
-nohup nfacctd -f "$nfacctd_tmp/nfacctd.$pmacctdPid.conf" >> "$nfacctdOutFile" 2>&1 &
-nfacctdPid=$!  # Capture the process ID of the last background command
-# Store the PID in a file for future reference if needed
-echo "$nfacctdPid" > "/tmp/nfacctd.txt"
-echo "nfacctd process started with PID: $nfacctdPid"
-echo
-echo
-###
-
+    echo "pmacctd is not running" >> $OutLog
+    echo "Exiting..." >> $OutLog
+    echo "pmacctd is not running" | mail lvergara06@gmail.com 
+    exit -1
+fi 
 ### End
 
-echo "###########################################"
-echo "## JOBSTEP: 010 Finished                   "
-echo "###########################################"
-echo
-echo 
+echo "###########################################" >> $OutLog
+echo "## JOBSTEP: 010 Finished                   " >> $OutLog
+echo "###########################################" >> $OutLog
+echo >> $OutLog
+echo >> $OutLog
 
 ###########################################
 ## JOBSTEP : 020
+## Desc    : Extract the print_output_file
+##           from nfacctd.conf
+###########################################
+echo "###########################################" >> $OutLog
+echo "## JOBSTEP: 020 Started                    " >> $OutLog
+echo "###########################################" >> $OutLog
+echo >> $OutLog
+echo >> $OutLog
+
+# Look for the path to nfacctd.conf file in Transport.conf
+# If it is missing at this point we are left we somewhat
+# of an orphaned output but we don't let this stop us now.
+
+transportConf=/opt/firefox/user_to_network/user_to_network_NativeApp/Transport.conf
+nfacctdConf=""
+flowsOutput=""
+flowsBefore=""
+
+# Check if the Transport.conf file exists
+if [ ! -f "$transportConf" ]
+then
+    echo "Transport.conf does not exist" >> $OutLog
+else
+    # Check if -n exists in the Transport.conf file.
+    nfacctdConf=$(extract_string_after_argument "-n" "$transportConf")
+    if [ -n "$nfacctdConf" ] && [ -f "$nfacctdConf" ]
+    then
+        echo "Using nfacctd file: $nfacctdConf" >> $OutLog
+        # 
+        # In nfacctdConf we should find print_output_file value
+        flowsOutput=`grep -w print_output_file "$nfacctdConf"   | awk -F: '{print $2}' | awk  '{$1=$1};1'`
+        if [ -n "$flowsOutput" ] && [ -f "$flowsOutput" ]
+        then
+            echo "Using flowsOutput file: $flowsOutput" >> $OutLog
+            ##
+            # This is where we want to make a copy of the flowsOutput file as is
+            # We will need this for later
+            # 
+            flowsBefore=/opt/firefox/user_to_network/pmacct/tmp/flows.before.$CurrentPID.$timestamp.csv
+            cp $flowsOutput $flowsBefore >> $OutLog
+        else
+            echo "Could not open flows output: $flowsOutput" >> $OutLog
+        fi
+    else
+        echo "nfacctd file not found or invalid" >> $OutLog
+        echo "flows.csv could not be found" >> $OutLog
+    fi
+fi
+
+### End
+
+echo "###########################################" >> $OutLog
+echo "## JOBSTEP: 020 Finished                   " >> $OutLog
+echo "###########################################" >> $OutLog
+echo >> $OutLog
+echo >> $OutLog
+
+
+###########################################
+## JOBSTEP : 030
 ## Desc    : Run the Firefox Extension
 ###########################################
-echo "###########################################"
-echo "## JOBSTEP: 020 Started                    "
-echo "###########################################"
-echo
-echo 
-
+echo "###########################################" >> $OutLog
+echo "## JOBSTEP: 030 Started                    " >> $OutLog
+echo "###########################################" >> $OutLog
+echo >> $OutLog
+echo >> $OutLog
+connections=""
+connectionsWork=""
+connectionsDefault=/opt/firefox/user_to_network/user_to_network_NativeApp/output/connections.csv
 ## Executing
 # Check if this already running. Don't run multiple of these
-echo "pgrep -f 'node /usr/local/bin/web-ext' >/dev/null"
+echo "pgrep -f 'node /usr/local/bin/web-ext' >/dev/null" >> $OutLog
 pgrep -f "node /usr/local/bin/web-ext" 2>/dev/null
 if [[ $? -eq 0 ]]
 then
     #Do nothing
-    echo "Firefox Extension already running web-ext"
+    echo "Firefox Extension already running web-ext"  >> $OutLog
 else
     # Set the path to the extension
     extension_path="/opt/firefox/user_to_network/user_to_network_Extension"
@@ -257,140 +217,142 @@ else
     [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"  # This loads nvm bash_completion
 
     # Run the web-ext tool with the Firefox Developer Edition
-    #LONG WAIT
-    sleep 20
-    echo web-ext run --firefox-binary $firefox_dev_path -s $extension_path
+    echo web-ext run --firefox-binary $firefox_dev_path -s $extension_path >> $OutLog 
     web-ext run --firefox-binary "$firefox_dev_path" -s "$extension_path"
+    echo >> $OutLog
+    echo >> $OutLog
+    #
+    ## Let's go ahead and take the connections file and put it in 
+    # a more stable place
+    # Check if the "-c" argument exists in the file
+    connections=$(extract_string_after_argument "-c" "$file_path")
+    # Check if the extracted string is a valid file
+    if [ -n "$connections" ] && [ -f "$connections" ]
+    then
+        echo "$connections is valid" >> $OutLog
+        echo "Using connections file: $connections" >> $OutLog
+    else
+        echo "connections.csv from .conf file not found or invalid" >> $OutLog
+        connections=$connectionsDefault 
+        echo "Using default connections file: $connections" >> $OutLog
+    fi
+
+    connectionsWork=/opt/firefox/user_to_network/user_to_network_NativeApp/work/connections.$CurrentPID.$timestamp.csv
+    cp $connections $connectionsWork >> $OutLog
+    #
+    ## Make certain that the copy worked before delete
+    if [ -n "$connectionsWork" ] && [ -f "$connectionsWork" ]
+    then    
+        echo $connections copied to $connectionsWork >> $OutLog
+        rm $connections
+        echo "$connections removed." >> $OutLog
+    fi
 fi
 
 ### End
 
-echo "###########################################"
-echo "## JOBSTEP: 020 Finished                   "
-echo "###########################################"
-echo
-echo 
+echo "###########################################" >> $OutLog
+echo "## JOBSTEP: 030 Finished                   " >> $OutLog
+echo "###########################################" >> $OutLog
+echo >> $OutLog
+echo >> $OutLog
 
 ###########################################
-## JOBSTEP : 030
-## Desc    : Kill pmacctd : Wait 15 minutes
+## JOBSTEP : 040
+## Desc    : Get diff of flows.out
 ###########################################
-echo "###########################################"
-echo "## JOBSTEP: 030 Started                    "
-echo "###########################################"
-echo
-echo 
+echo "###########################################" >> $OutLog
+echo "## JOBSTEP: 040 Started                    " >> $OutLog
+echo "###########################################" >> $OutLog
+echo >> $OutLog
+echo >> $OutLog
 
 ## Executing
 
 # Start a delay before auto running merge.py 
-echo sleep 1 min
-sleep 60
-sudo /opt/firefox/user_to_network/user_to_network_Extension/SudoKillPmacctd.sh $pmacctdPid
-kill -9 $nfacctdPid
+echo sleep 5 min >> $OutLog
+sleep 300
+
+flowsAfter=""
+flowsDiff=""
+# If flowsBefore is valid and flowsOutput is valid we can do a diff
+if [ -n "$flowsOutput" ] && [ -f "$flowsOutput" ] && [ -n "$flowsBefore" ] && [ -f "$flowsBefore" ]
+then
+    ##
+    # This is where we want to make a copy of the flowsOutput file as is
+    # We will need this for later
+    # 
+    flowsAfter=/opt/firefox/user_to_network/pmacct/tmp/flows.after.$CurrentPID.$timestamp.csv
+    cp $flowsOutput $flowsAfter >> $OutLog
+
+    ##
+    # If we made it here then we should be able to do a diff
+    flowsDiff=/opt/firefox/user_to_network/pmacct/tmp/flows.diff.$CurrentPID.$timestamp.csv
+    diff $flowsBefore $flowsAfter | grep ">" | awk -F\> '{print $2}' | awk '{$1=$1};1' > $flowsDiff
+fi    
+
 ### End
 
-echo "###########################################"
-echo "## JOBSTEP: 030 Finished                   "
-echo "###########################################"
-echo
-echo 
+echo "###########################################" >> $OutLog
+echo "## JOBSTEP: 040 Finished                   " >> $OutLog
+echo "###########################################" >> $OutLog
+echo >> $OutLog
+echo >> $OutLog
 
 ###########################################
-## JOBSTEP : 035
+## JOBSTEP : 050
 ## Desc    : Get timestamp 
 ###########################################
-echo "###########################################"
-echo "## JOBSTEP: 035 Started                    "
-echo "###########################################"
-echo
-echo 
+echo "###########################################" >> $OutLog
+echo "## JOBSTEP: 050 Started                    " >> $OutLog
+echo "###########################################" >> $OutLog
+echo >> $OutLog
+echo >> $OutLog
 
 ### Executing
 # Get current UTC timestamp
+echo "Getting end time stamp" >> $OutLog
 endtimestamp=$(date -u +"%Y%m%d %H:%M:%S")
 
 # Output the UTC timestamp
-echo "end time: $endtimestamp"
+echo "end time: $endtimestamp" >> $OutLog
 
 ### End
 
-echo "###########################################"
-echo "## JOBSTEP: 035 Finished                   "
-echo "###########################################"
-echo
-echo 
+echo "###########################################" >> $OutLog
+echo "## JOBSTEP: 050 Finished                   " >> $OutLog
+echo "###########################################" >> $OutLog
+echo >> $OutLog
+echo >> $OutLog
 
 ###########################################
-## JOBSTEP : 050
-## Desc    : End pmacctd and nfacctd
+## JOBSTEP : 060
+## Desc    : Merge the outputs
 ###########################################
-echo "###########################################"
-echo "## JOBSTEP: 040 Started                    "
-echo "###########################################"
-echo
-echo 
+echo "###########################################" >> $OutLog
+echo "## JOBSTEP: 060 Started                    " >> $OutLog
+echo "###########################################" >> $OutLog
+echo >> $OutLog
+echo >> $OutLog
 
-###########################################
-## JOBSTEP : 050
-## Desc    : Merge the Firefox Connections 
-##           with pmacctd flows.
-###########################################
-echo "###########################################"
-echo "## JOBSTEP: 050 Started                    "
-echo "###########################################"
-echo
-echo 
-
-## From Transport.conf take -fo (flows out) default is /opt/firefox/user_to_network/pmacct/flows/flows.csv
-## Also take -c (connections.csv path) default is /opt/firefox/user_to_network/user_to_network_NativeApp/connections.csv
-## Executing
-#
-flowsDefault="/opt/firefox/user_to_network/pmacct/flows/flows.csv"
-connectionsDefault="/opt/firefox/user_to_network/user_to_network_NativeApp/connections.csv"
-
-# Check if the "-fo" argument exists in the file
-flows=$(extract_string_after_argument "-fo" "$file_path")
-# Check if the extracted string is a valid file
-if [ -n "$flows" ] && [ -f "$flows" ]
+mergedOut=/opt/firefox/user_to_network/user_to_network_NativeApp/mergedOutput/merged_connections_$CurrentPID.$timestamp.csv
+##
+# The end game! If we have a diff then we can do a merge
+# Let's also check the connections file is good
+if [ -n "$flowsDiff" ] && [ -f "$flowsDiff" ] && [ -n "$connectionsWork" ] && [ -f "$connectionsWork" ]
 then
-    echo "$flows is valid"
-    echo "Using flows file: $flows"
+    echo "running python3 /opt/firefox/user_to_network/user_to_network_NativeApp/Merge.py $connectionsWork $flowsDiff >> $mergedOut" >> $OutLog
+    python3 /opt/firefox/user_to_network/user_to_network_NativeApp/Merge.py $connectionsWork $flowsDiff >> $mergedOut
 else
-    echo "flows file not found or invalid"
-    flows="$flowsDefault"
-    echo "Using default flows file: $flows"
+    echo "Merge could not be done because either flows was not found or connections was not found" >> $OutLog
+    echo "Make sure that you specify the nfacctd.conf file with -n /path/to/nfacctd.conf file in Transport.conf" >> $OutLog
+    echo "Or make sure that connections were created by the extension" >> $OutLog
 fi
 
-# Check if the "-fo" argument exists in the file
-connections=$(extract_string_after_argument "-c" "$file_path")
-# Check if the extracted string is a valid file
-if [ -n "$connections" ] && [ -f "$connections" ]
-then
-    echo "$connections is valid"
-    echo "Using connections file: $connections"
-else
-    echo "connections file not found or invalid"
-    connections="$connectionsDefault"
-    echo "Using default connections file: $connections"
-fi
+echo "###########################################" >> $OutLog
+echo "## JOBSTEP: 060 Finished                   " >> $OutLog
+echo "###########################################" >> $OutLog
+echo >> $OutLog
+echo >> $OutLog
 
-echo "running python3 /opt/firefox/user_to_network/user_to_network_NativeApp/Merge.py $flows $connections"
-python3 /opt/firefox/user_to_network/user_to_network_NativeApp/Merge.py $connections $flows
-
-# connections_file="/opt/firefox/user_to_network/user_to_network_NativeApp/connections.csv"
-# flows_file="/opt/firefox/user_to_network/user_to_network_NativeApp/flows.csv"
-# output_dir="/opt/firefox/user_to_network/user_to_network_NativeApp/"
-# output_file="$output_dir/merged_$(date +%Y-%m-%d_%H:%M:%S).csv"
-# log_dir="/opt/firefox/user_to_network/user_to_network_NativeApp/logs"
-# log_file="$log_dir/ClickScript_$(date +%Y-%m-%d_%H:%M:%S).log"
-# bkp_dir="/opt/firefox/user_to_network/user_to_network_NativeApp/connectionsBkp"
-# bkp_file="$bkp_dir/connections_$(date +%Y-%m-%d_%H:%M:%S).csv"
-
-# if [[ -e $connections_file && -e $flows_file ]]; then
-#     python mergy.py "$connections_file" "$flows_file" > "$output_file"
-#     # Save the connections.csv file
-#     cp "$connectons_file" "$bkp_file"
-# else
-#     echo "Either $connections_file or $flows_file does not exist" >> "$log_file"
-# fi
+exit 0
