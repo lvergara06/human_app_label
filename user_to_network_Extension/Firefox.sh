@@ -497,8 +497,8 @@ then
     python3 /opt/firefox/user_to_network/user_to_network_NativeApp/Merge.py $connectionsWork $flowsOutput >> $mergedOut
 else
     echo "Merge could not be done because either flows was not found or connections was not found" >> $OutLog
-    echo "Make sure that you specify the nfacctd.conf file with -n /path/to/nfacctd.conf file in Transport.conf" >> $OutLog
-    echo "Or make sure that connections were created by the extension" >> $OutLog
+    echo "Make sure that [$flowsOutput] exists" >> $OutLog
+    echo "Or make sure that [$connectionsWork] was created by the extension" >> $OutLog
 fi
 
 echo >> $OutLog

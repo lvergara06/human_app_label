@@ -27,6 +27,7 @@
  *                           If a new host is created mid browsing it will logged as
  *                           an external host. 
  *                           External hosts can be useful to identify ads and other robots.
+ * 20230919 - Luis Vergara - Redirected pages were not creating a popup - Added redirected logic.
  ****************************************************************/
 
 
@@ -131,14 +132,20 @@ function logOnBeforeRequest(eventDetails) {
         requestHandle.originUrl = eventDetails.url;
         // Save url to send to popup
         requestHandle.url4Popup = eventDetails.url;
-
-        newGetMainFrameRequest = {
-            id: requestHandle.id,
-            url: requestHandle.url4Popup,
-            tabId: requestHandle.tabId,
-            host: requestHandle.host
-        };
-        getMainFrameRequests.push(newGetMainFrameRequest);
+        //
+        if (Object.hasOwn(requestHandle, 'redirected')) {
+            requestHandle.url4Popup = requestHandle.urlBeforeRedirection;
+        }
+        else
+        {
+            newGetMainFrameRequest = {
+                id: requestHandle.id,
+                url: requestHandle.url4Popup,
+                tabId: requestHandle.tabId,
+                host: requestHandle.host
+            };
+            getMainFrameRequests.push(newGetMainFrameRequest);
+        }
     }
 
     logEvent("BeforeRequest", eventDetails, requestHandle);
@@ -321,10 +328,22 @@ async function logOnCompleted(eventDetails) {
 
         if (eventDetails.method.toLowerCase() === "get" && eventDetails.type.toLowerCase() === "main_frame") {
             requestHandle.requestStatus = "GetMain";
+
             // Find out if this host already prompted a popup
             let getMainFrameRequestHandle = getMainFrameRequests.find(({ host }) => host === requestHandle.host);
             if (getMainFrameRequestHandle === undefined) // Create the request 
             {
+                // Add the host to getMainFrameRequestHandle to stop other get main connections with same host to 
+                // start another popup
+                let getMainFrameRequestHandleById = getMainFrameRequests.find(({ id }) => id === requestHandle.id);
+                if (getMainFrameRequestHandleById === undefined) // Add host
+                {
+                    console.error("No getMainFrameRequestHandleById : " + eventDetails.requestId + " in logOnCompleted!");
+                }
+                else
+                {
+                    getMainFrameRequestHandleById.host = requestHandle.host;
+                }
                 // Call pop up
                 try {
                     // pop up basics:
