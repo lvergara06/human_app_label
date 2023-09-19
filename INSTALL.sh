@@ -213,7 +213,7 @@ fi
 # Adding this user to allow it to run pmacctd without sudo password
 
 # Check if the user is already in sudoers
-if sudo grep -q "^$current_user " /etc/sudoers; then
+if sudo grep -q "^$current_user " /etc/sudoers | grep $pmacctdPath | grep NOPASSWD; then
   echo "The user $current_user is already in the sudoers file."
 else
 echo "$current_user ALL=(ALL) NOPASSWD: $pmacctdPath" | sudo tee -a /etc/sudoers
