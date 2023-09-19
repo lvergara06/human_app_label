@@ -243,6 +243,7 @@ cp "$nfacctdConf" "$nfacctdTmp/nfacctd.$pmacctdPid.conf"
 # Find the line with "print_output_file: flows.csv" and modify it
 sed -E -i "s#(print_output_file:[[:space:]]*).*#\1$nfacctdFlows/flows.$pmacctdPid.csv#" "$nfacctdTmp/nfacctd.$pmacctdPid.conf"
 flowsOutput=$nfacctdFlows/flows.$pmacctdPid.csv
+echo "Flows Output at [$flowsOutput]" >> $OutLog
 
 # Command to run nfacctd -f $nfacctdFile
 echo "nfacctd -f $nfacctdTmp/nfacctd.$pmacctdPid.conf >> $nfacctdOutFile 2>&1 &" >> $OutLog 
