@@ -348,6 +348,8 @@ if [[ $? -eq 0 ]]
 then
     #Do nothing
     echo "Firefox Extension already running web-ext"  >> $OutLog
+    echo "Exiting..." >> $OutLog
+    exit -1
 else
     # Set the path to the extension
     extension_path="/opt/firefox/user_to_network/user_to_network_Extension"
