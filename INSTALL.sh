@@ -164,7 +164,7 @@ echo
 #Install ndpi
 if ! ls -l /usr/lib/libndpi.so | grep 4.6.0 &> /dev/null; then
     # Clone pmacct repository
-    echo "Cloning pmacct"
+    echo "Cloning ndpi 4.6.0"
     install_package "git"
     echo "ndpi is not installed. Installing..."
     echo "Installing dependencies"
