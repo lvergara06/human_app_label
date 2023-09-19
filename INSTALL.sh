@@ -187,14 +187,14 @@ echo
 
 if ! command -v pmacctd &> /dev/null; then
     # Clone pmacct repository
-    echo "Cloning pmacct 1.7.8"
+    echo "Cloning pmacct latest"
     install_package "git"
     echo "pmacctd is not installed. Installing..."
     echo "Installing dependencies"
     sudo apt-get install libpcap0.8-dev
     sudo apt-get install pkg-config m4 libtool automake autoconf
     #sudo apt-get install libpcap-dev pkg-config libtool autoconf automake make bash libstdc++-dev g++
-    git clone -b 1.7.8 https://github.com/pmacct/pmacct.git $TMPDIR/pmacct
+    git clone https://github.com/pmacct/pmacct.git $TMPDIR/pmacct
     cd $TMPDIR/pmacct
     sudo ./autogen.sh
     sudo ./configure --enable-ndpi
