@@ -161,6 +161,29 @@ echo "Installing netstat"
 install_package "net-tools"
 
 echo
+#Install ndpi
+if ! ls -l /usr/lib/libndpi.so | grep 4.6.0 &> /dev/null; then
+    # Clone pmacct repository
+    echo "Cloning pmacct"
+    install_package "git"
+    echo "ndpi is not installed. Installing..."
+    echo "Installing dependencies"
+    sudo apt-get install libpcap0.8-dev
+    sudo apt-get install pkg-config m4 libtool automake autoconf
+    #sudo apt-get install libpcap-dev pkg-config libtool autoconf automake make bash libstdc++-dev g++
+    git clone -b 4.6 https://github.com/ntop/nDPI $TMPDIR/ndpi
+    cd $TMPDIR/ndpi
+    sudo ./autogen.sh
+    sudo ./configure
+    sudo make
+    sudo make install
+    sudo ldconfig
+    echo "ndip installed."
+else
+    echo "ndpi is already installed."
+fi
+
+echo
 
 if ! command -v pmacctd &> /dev/null; then
     # Clone pmacct repository
@@ -174,7 +197,7 @@ if ! command -v pmacctd &> /dev/null; then
     git clone https://github.com/pmacct/pmacct.git $TMPDIR/pmacct
     cd $TMPDIR/pmacct
     sudo ./autogen.sh
-    sudo ./configure
+    sudo ./configure --enable-ndpi
     sudo make
     sudo make install
     echo "pmacctd installed."
@@ -225,7 +248,7 @@ if ! sudo visudo -cf /etc/sudoers; then
   echo "There is a syntax error in the sudoers file. The user has not been added."
   exit 1
 fi
-echo "The user $current_user has been added to the sudoers file with permission to run pmacctd without a password prompt."
+
 echo
 echo "firefox_user_to_network Installed"
 
