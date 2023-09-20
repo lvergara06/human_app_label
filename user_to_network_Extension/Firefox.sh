@@ -160,7 +160,7 @@ else
     fi
 fi
 
-echo "start time : $timestamp" >> "$pmacctdOutFile" >> $OutLog
+echo "start time : $timestamp" >> "$pmacctdOutFile"
 nohup sudo pmacctd -f "$pmacctdConf" >> "$pmacctdOutFile" 2>&1 &
 pmacctdPid=$!  # Capture the process ID of the last background command
 # Store the PID in a file for future reference if needed
