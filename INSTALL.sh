@@ -1,4 +1,9 @@
 #!/bin/bash
+###########################################################
+## Date          Name               Description   
+## 09/22/23      Herman Ramey        Replaced git with curl and wget 
+###########################################################
+
 
 # Check if the script is being run with sudo
 if [ "$EUID" -eq 0 ]; then
@@ -162,17 +167,19 @@ install_package "net-tools"
 
 echo
 #Install ndpi
-if ! ls -l /usr/lib/libndpi.so | grep 4.6.0 &> /dev/null; then
+if ! ls -l /usr/lib/libndpi.so | grep 4.0.0 &> /dev/null; then
     # Clone pmacct repository
-    echo "Cloning ndpi 4.6.0"
+    echo "Cloning ndpi 4.0.0"
     install_package "git"
+
     echo "ndpi is not installed. Installing..."
+    #wget -c https://github.com/ntopnDPI/archive/refs/tags/4.0.tar.gz $TMPDIR/ndpi
+    #cd $TMPDIR/ndpi
+    #tar -xzvf 4.0.tar.gz 
+   curl -L https://github.com/ntop/nDPI/archive/refs/tags/4.0.tar.gz -o $TMPDIR/nDPI-4.0.tar.gz; cd $TMPDIR; tar -xzvf nDPI-4.0.tar.gz 
     echo "Installing dependencies"
-    sudo apt-get install libpcap0.8-dev
-    sudo apt-get install pkg-config m4 libtool automake autoconf
-    #sudo apt-get install libpcap-dev pkg-config libtool autoconf automake make bash libstdc++-dev g++
-    git clone -b 4.6 https://github.com/ntop/nDPI $TMPDIR/ndpi
-    cd $TMPDIR/ndpi
+    sudo apt-get install build-essential git gettext flex bison libtool autoconf automake pkg-config libpcap-dev libjson-c-dev libnuma-dev libpcre2-dev libmaxminddb-dev librrd-dev 
+    cd $TMPDIR/nDPI-4.0
     sudo ./autogen.sh
     sudo ./configure
     sudo make
@@ -191,12 +198,11 @@ if ! command -v pmacctd &> /dev/null; then
     install_package "git"
     echo "pmacctd is not installed. Installing..."
     echo "Installing dependencies"
-    sudo apt-get install libpcap0.8-dev
-    sudo apt-get install pkg-config m4 libtool automake autoconf
-    #sudo apt-get install libpcap-dev pkg-config libtool autoconf automake make bash libstdc++-dev g++
-    git clone https://github.com/pmacct/pmacct.git $TMPDIR/pmacct
+    wget -c http://www.pmacct.net/pmacct-1.7.8.tar.gz $TMPDIR/pmacct
     cd $TMPDIR/pmacct
-    sudo ./autogen.sh
+    tar -xzvf pmacct-1.7.8.tar.gz
+    cd pmacct-1.7.8
+    #sudo ./autogen.sh
     sudo ./configure --enable-ndpi
     sudo make
     sudo make install
