@@ -10,6 +10,8 @@
 ## Luis Vergara 09/10/23 Rework and lazy logs
 ## Luis Vergara 09/15/23 Reinstating start 
 ##                       pmacctd and nfacctd
+## Herman Ramey 09/25/23 Adding feedback to log
+##			 for invalid nfacctd.conf
 ##
 ###########################################
 CurrentPID=$$
@@ -216,12 +218,13 @@ else
         #echo "$nfacctdConf is valid"
         echo "Using nfacctd file: [$nfacctdConf]" >> $OutLog
     else
-        #echo "nfacctd file not found or invalid"
+        echo "nfacctd file not found or invalid" >>$OutLog
+        echo "nfacctdConf [$nfacctdConf] does not exist" >>$OutLog
         nfacctdConf="$nfacctdDefault"
         echo "Using default nfacctd file: [$nfacctdConf]" >> $OutLog
     fi
 
-    # Check if the "-no" argument exists in the file
+    # Check if the "-n" argument exists in the file
     nfacctdOutFile=$(extract_string_after_argument "-no" "$transportConf")
     # Check if the extracted string is a valid file
     if [ -n "$nfacctdOutFile" ] && [ -f "$nfacctdOutFile" ]
