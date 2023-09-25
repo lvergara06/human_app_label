@@ -36,11 +36,12 @@ with open(connectionsFile, 'r') as source1,\
     flows = source2.readlines()
     for flow in flows:
         splitFlow = flow.split(',')
-        flowSourceIp = splitFlow[0]
-        flowDestinationIp = splitFlow[1]
-        flowSourcePort = splitFlow[2]
-        flowDestinationPort = splitFlow[3]
-        flowStartTime = splitFlow[5]
+        flowClass = splitFlow[0]
+        flowSourceIp = splitFlow[1]
+        flowDestinationIp = splitFlow[2]
+        flowSourcePort = splitFlow[3]
+        flowDestinationPort = splitFlow[4]
+        flowStartTime = splitFlow[6]
         # Skip the header fields
         if flowStartTime == "TIMESTAMP_START":
             continue
