@@ -8,6 +8,7 @@ installed correctly.
 2) Open /opt/firefox/user_to_network/user_to_network_NativeApp/Transport.conf to set the following options.
 (The options will default if not specified)
 -n /path/to/nfacctd.conf file.            Default /opt/firefox/user_to_network/pmacct/nfacctd.conf
+-d /path/to/pmacctd.conf file.            Default /opt/firefox/user_to_network/pmacct/pmacctd.conf
 -E Extended information -                 Default is to only get the minimum amount of data from the extension. If you want all the request headers and responses use -E 'All.
                                           Use a comma delimited list of the following details.
     'All' - As much information about request headers possible
