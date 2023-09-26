@@ -12,6 +12,8 @@
 ##                       pmacctd and nfacctd
 ## Herman Ramey 09/25/23 Adding feedback to log
 ##			 for invalid nfacctd.conf
+## Luis Vergara 09/26/23 Handle when pmacctd
+##                       or nfacctd fail to start
 ##
 ###########################################
 CurrentPID=$$
@@ -50,10 +52,10 @@ echo >> $OutLog
 echo "Checking if firefox extension is running" >> $OutLog
 echo >> $OutLog
 # Check if this already running. Don't run multiple of these
-echo "pgrep -f 'Firefox.sh' | wc -l" >> $OutLog
-Count=`pgrep -f "Firefox.sh" | wc -l`
+echo "pgrep -f '/bin/bash /opt/firefox/human_app_label/Extension/Firefox.sh' | wc -l" >> $OutLog
+Count=`pgrep -f "/bin/bash /opt/firefox/human_app_label/Extension/Firefox.sh" | wc -l`
 echo "Firefox.sh count is $Count" >> $OutLog
-if [[ $Count -eq 1 ]]
+if [[ $Count -gt 1 ]]
 then
     #Do nothing
     echo "Firefox.sh already running"  >> $OutLog
@@ -355,6 +357,28 @@ then
     echo "Exiting..." >> $OutLog
     exit -1
 else
+    #Make sure pmacctd and nfacctd are running 
+    if ps -p $pmacctdPid > /dev/null; then
+        #Check if nfacctd is running
+        if ps -p $nfacctdPid > /dev/null; then
+            echo "pmacctd and nfacctd running... now starting browser" >> $OutLog
+        else
+            echo "nfacctd pid $nfacctdPid is not running before starting browser. Check what went wrong." >> $OutLog
+            echo "Killing pmacctd pid $pmacctdPid..." >> $OutLog
+            sudo /opt/firefox/human_app_label/Extension/SudoKillPmacctd.sh $pmacctdPid        
+            echo "exiting..." >> $OutLog
+            exit -1
+        fi
+    else
+        echo "pmacctd pid $pmacctdPid is not running before starting browser. Check what went wrong." >> $OutLog
+        if ps -p $nfacctdPid > /dev/null; then
+            echo "Killing nfacctd pid $nfacctdPid" >> $OutLog
+            kill -9 $nfacctdPid
+        fi
+        echo "exiting..." >> $OutLog
+        exit -1
+    fi
+    
     # Set the path to the extension
     extension_path="/opt/firefox/human_app_label/Extension"
 
