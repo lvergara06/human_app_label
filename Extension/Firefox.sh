@@ -16,7 +16,7 @@
 ###########################################
 CurrentPID=$$
 timestamp=$(date -u +"%Y%m%d%H%M%S")
-OutLog=/opt/firefox/user_to_network/logs/Firefox.$timestamp.log
+OutLog=/opt/firefox/human_app_label/logs/Firefox.$timestamp.log
 ###########################################
 # HELPER FUNCTIONS
 ###########################################
@@ -114,16 +114,16 @@ echo "Starting pmacctd" >> $OutLog
 # this job can run pmacctd using some configuration files built into the repository
 # The configuration of the switch could be different. Open the .conf file below to
 # Change the configuration.
-transportConf="/opt/firefox/user_to_network/user_to_network_NativeApp/Transport.conf"
-pmacctdDefault="/opt/firefox/user_to_network/pmacct/pmacctd.conf"
-pmacctdLogs="/opt/firefox/user_to_network/pmacct/logs"
+transportConf="/opt/firefox/human_app_label/NativeApp/Transport.conf"
+pmacctdDefault="/opt/firefox/human_app_label/pmacct/pmacctd.conf"
+pmacctdLogs="/opt/firefox/human_app_label/pmacct/logs"
 pmacctdConf=""
 pmacctdOutFile=""
 # Check if the folder exists
-if [ ! -d "/opt/firefox/user_to_network/pmacct/logs" ]
+if [ ! -d "/opt/firefox/human_app_label/pmacct/logs" ]
 then
     # Create the folder if it doesn't exist
-    mkdir -p "/opt/firefox/user_to_network/pmacct/logs"
+    mkdir -p "/opt/firefox/human_app_label/pmacct/logs"
 fi
 
 echo "Looking in $transportConf for pmacctd configuration file path" >> $OutLog
@@ -178,27 +178,27 @@ echo "Starting nfacctd" >> $OutLog
 # You can specify the nfacctd file to use in Transport.conf or else
 # this job can run nfacctd using some configuration files built into the repository.
 # Open the .conf file below to change the configuration.
-transportConf="/opt/firefox/user_to_network/user_to_network_NativeApp/Transport.conf"
-nfacctdDefault="/opt/firefox/user_to_network/pmacct/nfacctd.conf"
-nfacctdLogs="/opt/firefox/user_to_network/pmacct/logs"
-nfacctdTmp="/opt/firefox/user_to_network/pmacct/tmp"
-nfacctdFlows="/opt/firefox/user_to_network/pmacct/flows"
+transportConf="/opt/firefox/human_app_label/NativeApp/Transport.conf"
+nfacctdDefault="/opt/firefox/human_app_label/pmacct/nfacctd.conf"
+nfacctdLogs="/opt/firefox/human_app_label/pmacct/logs"
+nfacctdTmp="/opt/firefox/human_app_label/pmacct/tmp"
+nfacctdFlows="/opt/firefox/human_app_label/pmacct/flows"
 nfacctdConf=""
 nfacctdOutFile=""
 flowsOutput=""
 
 # Check if the folder exists
-if [ ! -d "/opt/firefox/user_to_network/pmacct/tmp" ] 
+if [ ! -d "/opt/firefox/human_app_label/pmacct/tmp" ] 
 then
     # Create the folder if it doesn't exist
-    mkdir -p "/opt/firefox/user_to_network/pmacct/tmp"
+    mkdir -p "/opt/firefox/human_app_label/pmacct/tmp"
 fi
 
 # Check if the folder exists
-if [ ! -d "/opt/firefox/user_to_network/pmacct/flows" ] 
+if [ ! -d "/opt/firefox/human_app_label/pmacct/flows" ] 
 then
     # Create the folder if it doesn't exist
-    mkdir -p "/opt/firefox/user_to_network/pmacct/flows"
+    mkdir -p "/opt/firefox/human_app_label/pmacct/flows"
 fi
 
 echo "Looking in $transportConf for nfacctd file path" >> $OutLog
@@ -287,7 +287,7 @@ echo >> $OutLog
 # If it is missing at this point we are left we somewhat
 # of an orphaned output but we don't let this stop us now.
 
-# transportConf=/opt/firefox/user_to_network/user_to_network_NativeApp/Transport.conf
+# transportConf=/opt/firefox/human_app_label/NativeApp/Transport.conf
 # nfacctdConf=""
 # flowsOutput=""
 # flowsBefore=""
@@ -312,7 +312,7 @@ echo >> $OutLog
 #             # This is where we want to make a copy of the flowsOutput file as is
 #             # We will need this for later
 #             # 
-#             flowsBefore=/opt/firefox/user_to_network/pmacct/tmp/flows.before.$CurrentPID.$timestamp.csv
+#             flowsBefore=/opt/firefox/human_app_label/pmacct/tmp/flows.before.$CurrentPID.$timestamp.csv
 #             cp $flowsOutput $flowsBefore >> $OutLog
 #         else
 #             echo "Could not open flows output: $flowsOutput" >> $OutLog
@@ -343,7 +343,7 @@ echo >> $OutLog
 echo >> $OutLog
 connections=""
 connectionsWork=""
-connectionsDefault=/opt/firefox/user_to_network/user_to_network_NativeApp/output/connections.csv
+connectionsDefault=/opt/firefox/human_app_label/NativeApp/output/connections.csv
 ## Executing
 # Check if this already running. Don't run multiple of these
 echo "pgrep -f 'node /usr/local/bin/web-ext' >/dev/null" >> $OutLog
@@ -356,7 +356,7 @@ then
     exit -1
 else
     # Set the path to the extension
-    extension_path="/opt/firefox/user_to_network/user_to_network_Extension"
+    extension_path="/opt/firefox/human_app_label/Extension"
 
     # Set the path to the Firefox Developer Edition executable
     firefox_dev_path="/opt/firefox/firefox"
@@ -388,7 +388,7 @@ else
         echo "Using default connections file: $connections" >> $OutLog
     fi
 
-    connectionsWork=/opt/firefox/user_to_network/user_to_network_NativeApp/work/connections.$CurrentPID.$timestamp.csv
+    connectionsWork=/opt/firefox/human_app_label/NativeApp/work/connections.$CurrentPID.$timestamp.csv
     cp $connections $connectionsWork >> $OutLog
     #
     ## Make certain that the copy worked before delete
@@ -426,7 +426,7 @@ echo >> $OutLog
  echo sleep 5 min >> $OutLog
  sleep 300
  echo "Killing pmacctd PID: $pmacctdPid" >> $OutLog
- sudo /opt/firefox/user_to_network/user_to_network_Extension/SudoKillPmacctd.sh $pmacctdPid
+ sudo /opt/firefox/human_app_label/Extension/SudoKillPmacctd.sh $pmacctdPid
  echo "Killing nfacctd PID: $nfacctdPid" >> $OutLog
  kill -9 $nfacctdPid
 # flowsAfter=""
@@ -438,12 +438,12 @@ echo >> $OutLog
 #     # This is where we want to make a copy of the flowsOutput file as is
 #     # We will need this for later
 #     # 
-#     flowsAfter=/opt/firefox/user_to_network/pmacct/tmp/flows.after.$CurrentPID.$timestamp.csv
+#     flowsAfter=/opt/firefox/human_app_label/pmacct/tmp/flows.after.$CurrentPID.$timestamp.csv
 #     cp $flowsOutput $flowsAfter >> $OutLog
 
 #     ##
 #     # If we made it here then we should be able to do a diff
-#     flowsDiff=/opt/firefox/user_to_network/pmacct/tmp/flows.diff.$CurrentPID.$timestamp.csv
+#     flowsDiff=/opt/firefox/human_app_label/pmacct/tmp/flows.diff.$CurrentPID.$timestamp.csv
 #     diff $flowsBefore $flowsAfter | grep ">" | awk -F\> '{print $2}' | awk '{$1=$1};1' > $flowsDiff
 # fi    
 
@@ -493,14 +493,14 @@ echo "###########################################" >> $OutLog
 echo >> $OutLog
 echo >> $OutLog
 
-mergedOut=/opt/firefox/user_to_network/user_to_network_NativeApp/mergedOutput/merged_connections_$CurrentPID.$timestamp.csv
+mergedOut=/opt/firefox/human_app_label/NativeApp/mergedOutput/merged_connections_$CurrentPID.$timestamp.csv
 ##
 # The end game! If we have a diff then we can do a merge
 # Let's also check the connections file is good
 if [ -n "$flowsOutput" ] && [ -f "$flowsOutput" ] && [ -n "$connectionsWork" ] && [ -f "$connectionsWork" ]
 then
-    echo "running python3 /opt/firefox/user_to_network/user_to_network_NativeApp/Merge.py $connectionsWork $flowsOutput >> $mergedOut" >> $OutLog
-    python3 /opt/firefox/user_to_network/user_to_network_NativeApp/Merge.py $connectionsWork $flowsOutput >> $mergedOut
+    echo "running python3 /opt/firefox/human_app_label/NativeApp/Merge.py $connectionsWork $flowsOutput >> $mergedOut" >> $OutLog
+    python3 /opt/firefox/human_app_label/NativeApp/Merge.py $connectionsWork $flowsOutput >> $mergedOut
 else
     echo "Merge could not be done because either flows was not found or connections was not found" >> $OutLog
     echo "Make sure that [$flowsOutput] exists" >> $OutLog

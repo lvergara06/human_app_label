@@ -1,6 +1,6 @@
 {
   "manifest_version": 2,
-  "name": "user_to_network",
+  "name": "human_app_label",
   "version": "1.0",
 
   "background": {

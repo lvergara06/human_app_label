@@ -23,18 +23,18 @@ import datetime
 import csv
 import re
 
-linuxConfigFile = "/opt/firefox/user_to_network/user_to_network_NativeApp/Transport.conf" ## This file has the line arguments for linux
+linuxConfigFile = "/opt/firefox/human_app_label/NativeApp/Transport.conf" ## This file has the line arguments for linux
         # linuxConfigFile should contain some of these options in line form i.e. -j json.json -c csv.csv -l /tmp/options.txt
         # -E : Extended information - Default is to only get the minimum amount of data from the extension. If you want all the request headers and responses use -E 'All'
         # -l : Options file
         # -j : JSON file
         # -c : CSV file
-defaultJsonFile = "/opt/firefox/user_to_network/user_to_network_NativeApp/connections.json"
-defaultCsvFile = "/opt/firefox/user_to_network/user_to_network_NativeApp/connections.csv"
-snapsDir = "/opt/firefox/user_to_network/user_to_network_NativeApp/snaps"
-outDir = "/opt/firefox/user_to_network/user_to_network_NativeApp/output"
-logsDir = "/opt/firefox/user_to_network/user_to_network_NativeApp/logs"
-allConnectionsDir = "/opt/firefox/user_to_network/user_to_network_NativeApp/allConnections"
+defaultJsonFile = "/opt/firefox/human_app_label/NativeApp/connections.json"
+defaultCsvFile = "/opt/firefox/human_app_label/NativeApp/connections.csv"
+snapsDir = "/opt/firefox/human_app_label/NativeApp/snaps"
+outDir = "/opt/firefox/human_app_label/NativeApp/output"
+logsDir = "/opt/firefox/human_app_label/NativeApp/logs"
+allConnectionsDir = "/opt/firefox/human_app_label/NativeApp/allConnections"
 timeStamp = ""
 
 try:

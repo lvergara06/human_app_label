@@ -41,13 +41,13 @@ if ! command -v git &> /dev/null; then
     echo "Git installed"
 fi
 
-# Clone user_to_network repository
-if [ -d "$TMPDIR/user_to_network" ]; then
-    echo "Git repository user_to_network already exists at $TMPDIR, skipping clone"
+# Clone human_app_label repository
+if [ -d "$TMPDIR/human_app_label" ]; then
+    echo "Git repository human_app_label already exists at $TMPDIR, skipping clone"
 else
-    echo "Cloning user_to_network"
-    git clone https://github.com/lvergara06/user_to_network $TMPDIR/user_to_network
-    echo "Cloned user_to_network"
+    echo "Cloning human_app_label"
+    git clone https://github.com/lvergara06/human_app_label $TMPDIR/human_app_label
+    echo "Cloned human_app_label"
 fi
 
 # Download Firefox Dev
@@ -75,22 +75,22 @@ else
 fi
 
 # Create app space
-if [ ! -d "/opt/firefox/user_to_network" ]; then
-    echo "Creating app space at /opt/firefox/user_to_network"
-    sudo mkdir -p /opt/firefox/user_to_network
-    # Copy user_to_network to app space
-    echo "Copying $TMPDIR/user_to_network to /opt/firefox/user_to_network"
-    sudo cp -r $TMPDIR/user_to_network/* /opt/firefox/user_to_network
-    echo "Copied user_to_network"
-    sudo rm -rf $TMPDIR/user_to_network
-    sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/connectionsBkp
-    sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/logs
-    sudo mkdir /opt/firefox/user_to_network/logs
-    sudo mkdir /opt/firefox/user_to_network/pmacct/flows
-    sudo mkdir /opt/firefox/user_to_network/pmacct/tmp
-    sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/mergedOutput
-    sudo mkdir /opt/firefox/user_to_network/user_to_network_NativeApp/work
-    sudo chmod -R 777 /opt/firefox/user_to_network
+if [ ! -d "/opt/firefox/human_app_label" ]; then
+    echo "Creating app space at /opt/firefox/human_app_label"
+    sudo mkdir -p /opt/firefox/human_app_label
+    # Copy human_app_label to app space
+    echo "Copying $TMPDIR/human_app_label to /opt/firefox/human_app_label"
+    sudo cp -r $TMPDIR/human_app_label/* /opt/firefox/human_app_label
+    echo "Copied human_app_label"
+    sudo rm -rf $TMPDIR/human_app_label
+    sudo mkdir /opt/firefox/human_app_label/NativeApp/connectionsBkp
+    sudo mkdir /opt/firefox/human_app_label/NativeApp/logs
+    sudo mkdir /opt/firefox/human_app_label/logs
+    sudo mkdir /opt/firefox/human_app_label/pmacct/flows
+    sudo mkdir /opt/firefox/human_app_label/pmacct/tmp
+    sudo mkdir /opt/firefox/human_app_label/NativeApp/mergedOutput
+    sudo mkdir /opt/firefox/human_app_label/NativeApp/work
+    sudo chmod -R 777 /opt/firefox/human_app_label
     echo "App space created"
 fi
 
@@ -99,7 +99,7 @@ fi
 echo "Creating mozilla native messaging directory"
 mkdir -p ~/.mozilla/native-messaging-hosts
 echo "Mozilla folder exists: ~/.mozilla/native-messaging-hosts"
-cp /opt/firefox/user_to_network/user_to_network_NativeApp/Transport.json ~/.mozilla/native-messaging-hosts
+cp /opt/firefox/human_app_label/NativeApp/Transport.json ~/.mozilla/native-messaging-hosts
 echo "Transport.json copied"
 
 # Install Flatpak
@@ -214,15 +214,15 @@ fi
 echo
 
 echo "Changing icon for firefox"
-sudo cp /opt/firefox/user_to_network/user_to_network_Extension/default128.png /opt/firefox/browser/chrome/icons/default
+sudo cp /opt/firefox/human_app_label/Extension/default128.png /opt/firefox/browser/chrome/icons/default
 
-echo "Installing firefox_user_to_network to the apps menu"
-sudo cp /opt/firefox/user_to_network/user_to_network_Extension/firefox_user_to_network.desktop ~/.local/share/applications
-sudo chmod 777 ~/.local/share/applications/firefox_user_to_network.desktop
+echo "Installing firefox_human_app_label to the apps menu"
+sudo cp /opt/firefox/human_app_label/Extension/firefox_human_app_label.desktop ~/.local/share/applications
+sudo chmod 777 ~/.local/share/applications/firefox_human_app_label.desktop
 echo
-# Adding firefox_user_to_network to the favorites dock
-echo "Adding firefox_user_to_network to favorites"
-gsettings set org.gnome.shell favorite-apps "$(gsettings get org.gnome.shell favorite-apps | sed "s/]/, 'firefox_user_to_network.desktop']/")"
+# Adding firefox_human_app_label to the favorites dock
+echo "Adding firefox_human_app_label to favorites"
+gsettings set org.gnome.shell favorite-apps "$(gsettings get org.gnome.shell favorite-apps | sed "s/]/, 'firefox_human_app_label.desktop']/")"
 echo
 echo "Removing regular firefox from favorites"
 gsettings set org.gnome.shell favorite-apps "$(gsettings get org.gnome.shell favorite-apps | sed "s|, 'firefox_firefox.desktop'||" | sed "s|'firefox_firefox.desktop', ||" | sed "s|'firefox_firefox.desktop' ||" | sed "s|'firefox_firefox.desktop']|]|")"
@@ -246,7 +246,7 @@ if sudo grep "^$current_user " /etc/sudoers | grep $pmacctdPath | grep NOPASSWD;
   echo "The user $current_user is already in the sudoers file."
 else
 echo "$current_user ALL=(ALL) NOPASSWD: $pmacctdPath" | sudo tee -a /etc/sudoers
-echo "$current_user ALL=(ALL) NOPASSWD: /opt/firefox/user_to_network/user_to_network_Extension/SudoKillPmacctd.sh" | sudo tee -a /etc/sudoers
+echo "$current_user ALL=(ALL) NOPASSWD: /opt/firefox/human_app_label/Extension/SudoKillPmacctd.sh" | sudo tee -a /etc/sudoers
 fi
 
 # Check if there are syntax errors in the sudoers file
@@ -256,6 +256,6 @@ if ! sudo visudo -cf /etc/sudoers; then
 fi
 
 echo
-echo "firefox_user_to_network Installed"
+echo "firefox_human_app_label Installed"
 
 echo "DONE!"

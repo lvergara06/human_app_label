@@ -421,7 +421,7 @@ function logCreatedTab(createdTab) {
 
 // On Installed
 browser.runtime.onInstalled.addListener(() => {
-    console.log("user_to_network running in background");
+    console.log("human_app_label running in background");
     // check operating system for native app
     // we cannot make this synchronous so we are going to have to do everything inside
     // this function because we need the os info before we can call native app.

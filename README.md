@@ -1,9 +1,9 @@
 # This script creates everything off of /tmp directory.
-# It clones user_to_network and pmacct but cleans up after they are installed.
+# It clones human_app_label and pmacct but cleans up after they are installed.
 ## The INSTALL.sh file will do the following.
 1) Install Git on Ubuntu/Debian
 	1.1) Check if Git is installed
-2) Clone user_to_network repository
+2) Clone human_app_label repository
 3) Download Firefox Dev
     3.1) Download the latest version of Firefox Developer Edition
 	3.2) Extract the downloaded archive
