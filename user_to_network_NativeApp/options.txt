@@ -1,6 +1,7 @@
-Social
-Shopping
-Streaming
-News
+Video streaming
 Email
+Social media
+News
+Shopping
+Information browsing
 Rather Not Say
