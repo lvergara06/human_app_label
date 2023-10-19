@@ -19,15 +19,19 @@
  *                           and plus we are not using the source ip & port
  *                           to make matches with pmacctd anymore.
  *                           We are trying to match with dest ip & port only.
+ * 20230919 - Luis Vergara - Redirected pages were not creating a popup - Added redirected logic.
+ * 20231012 - Herman Ramey - External hosts are those that have domain names that 
+ *                           do not match the domain name of the webpage that 
+ *                           fired the request.
  *     HOW IT WORKS FROM HERE ON OUT:
  *                           Get main_frame connections trigger the pop-up window.
  *                           The dest ip and port are saved with the user-selection.
  *                           An internal list of get main_frame hosts will keep multiple
  *                           requests on the same host to trigger the pop-up.
- *                           If a new host is created mid browsing it will logged as
- *                           an external host. 
+ *                           If a new host is created mid browsing with a domain name that does 
+ *                           not match the domain name of the webpage that fired the request, 
+ *                           it will logged as an external host. Otherwise, network operation.
  *                           External hosts can be useful to identify ads and other robots.
- * 20230919 - Luis Vergara - Redirected pages were not creating a popup - Added redirected logic.
  ****************************************************************/
 
 
@@ -44,6 +48,7 @@ let logFile = "";
 let popupOptionsList = [];
 let redirectNeeded = undefined;  // If the request needs a redirection
 let requests = [];               // Requests made so far
+let userSels = [];
 // {
 // id: "", request id from request headers
 // url: "", url from user
@@ -88,7 +93,7 @@ function logOnBeforeRequest(eventDetails) {
 
     // Create an entry for this request
     // Check if there is an entry for this requestId
-    let requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
+    let requestHandle = requests.find( ({ id }) => id === eventDetails.requestId);
     if (requestHandle === undefined) // Create the request 
     {
         newRequest = {
@@ -315,6 +320,7 @@ async function logOnCompleted(eventDetails) {
     }
     else {
         requestHandle.completedTime = eventDetails.timeStamp;
+        console.log(requestHandle.host);
         // Let's log this
         message = {
             state: "logConnection",
@@ -363,9 +369,14 @@ async function logOnCompleted(eventDetails) {
             }
         }
         else{
+            const requestDomain = extractDomain(requestHandle.host);
+            
             // Let's make sure the host on this request matches the user's intended host
-            let getHostHandle = getMainFrameRequests.find(({ host }) => host === requestHandle.host);
-            if (getHostHandle === undefined) // Not an intended hsot
+            let getHostHandle = getMainFrameRequests.find(({ host }) => {
+                const mainFrameDomain = extractDomain(host);
+                return mainFrameDomain === requestDomain;
+              });
+            if (getHostHandle === undefined) // Not an intended host
             {
                 requestHandle.requestStatus = "ExternalHost";
                 // This is a request from a host that isn't the users intended host
@@ -379,10 +390,8 @@ async function logOnCompleted(eventDetails) {
                         tabId: requestHandle.tabId,
                         host: requestHandle.host
                     };
-
                     externalHosts.push(newExternalHost);
-
-                    // I want to add it to connections
+                    // Log the external connections
                     state = "addMainConnection"
                     requestHandle.userSelection = "ExternalHost";
                     message = {
@@ -392,6 +401,18 @@ async function logOnCompleted(eventDetails) {
                     };
                     callNative(message);
                 }
+            }
+            // Request was triggered by intended host
+            else {
+                requestHandle.requestStatus = "NetworkOperation";
+                state = "addMainConnection"
+                requestHandle.userSelection = userSels[userSels.length - 1];
+                message = {
+                    state: state,
+                    dataIn: requestHandle,
+                    logFile : logFile
+                };
+                callNative(message);
             }
         }
     }
@@ -417,6 +438,17 @@ function handleStartup() {
 function logCreatedTab(createdTab) {
 
 
+}
+/*extractDomain
+* Given a hostname like subdomain.domain.topleveldomain, 
+* this function extracts domain name */
+function extractDomain(hostname) {
+    const parts = hostname.split('.');
+    // Check if there are at least three parts (subdomain.domain.tld)
+    if (parts.length >= 3) {
+        return parts[parts.length - 2];
+    }
+    return null;
 }
 
 // On Installed
@@ -551,6 +583,8 @@ browser.runtime.onMessage.addListener((msg) => {
         else {
             // This is the request for the get main_frame
             requestHandle.userSelection = msg.response;
+            // Save user selection for future use
+            userSels.push(msg.response);
             message = {
                 state: state,
                 dataIn: requestHandle,
@@ -645,9 +679,13 @@ function logEvent(source, eventDetails, requestHandle) {
 function trace(source, eventDetails) {
     if (DEBUG === "ON") {
         console.log("Entrace to " + source);
+        
         console.log(eventDetails);
+        console.log("Requests: ")
         console.log(requests);
+        console.log("MainFrameReqs: ");
         console.log(getMainFrameRequests);
+        console.log("External hosts: ");
         console.log(externalHosts);
     }
 }
