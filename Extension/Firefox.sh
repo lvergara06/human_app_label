@@ -55,12 +55,22 @@ echo >> $OutLog
 echo "pgrep -f '/bin/bash /opt/firefox/human_app_label/Extension/Firefox.sh' | wc -l" >> $OutLog
 Count=`pgrep -f "/bin/bash /opt/firefox/human_app_label/Extension/Firefox.sh" | wc -l`
 echo "Firefox.sh count is $Count" >> $OutLog
-if [[ $Count -gt 1 ]]
+if [[ $Count -eq 1 ]]
 then
     #Do nothing
     echo "Firefox.sh already running"  >> $OutLog
     exit -1
 fi
+
+# command_to_check="node /opt/firefox/human_app_label/Extension/server.js"
+
+# if pgrep -f "$command_to_check" >/dev/null; then
+#   echo "The server is already running." >> $OutLog
+# else
+#   echo "Running the server..." >> $OutLog
+# #   node --trace-warnings /opt/firefox/human_app_label/Extension/server.js &
+#   echo "Server started." >> $OutLog
+# fi
 
 echo "" >> $OutLog
 echo "" >> $OutLog
@@ -422,7 +432,15 @@ else
         rm $connections
         echo "$connections removed." >> $OutLog
     fi
+    # # Check if the server is running
+    # if pid=$(pgrep -f "node /opt/firefox/human_app_label/Extension/server.js"); then
+    # echo "Closing the server..." >> $OutLog
+    # kill -9 "$pid"
+    # echo "Process killed." >> $OutLog
+    # fi
 fi
+
+
 
 ### End
 
@@ -453,6 +471,7 @@ echo >> $OutLog
  sudo /opt/firefox/human_app_label/Extension/SudoKillPmacctd.sh $pmacctdPid
  echo "Killing nfacctd PID: $nfacctdPid" >> $OutLog
  kill -9 $nfacctdPid
+ 
 # flowsAfter=""
 # flowsDiff=""
 # # If flowsBefore is valid and flowsOutput is valid we can do a diff
@@ -523,8 +542,8 @@ mergedOut=/opt/firefox/human_app_label/NativeApp/mergedOutput/merged_connections
 # Let's also check the connections file is good
 if [ -n "$flowsOutput" ] && [ -f "$flowsOutput" ] && [ -n "$connectionsWork" ] && [ -f "$connectionsWork" ]
 then
-    echo "running python3 /opt/firefox/human_app_label/NativeApp/Merge.py $connectionsWork $flowsOutput >> $mergedOut" >> $OutLog
-    python3 /opt/firefox/human_app_label/NativeApp/Merge.py $connectionsWork $flowsOutput >> $mergedOut
+    echo "running python3 /opt/firefox/human_app_label/NativeApp/Merge.py $connectionsWork $flowsOutput $timestamp $CurrentPID >> $mergedOut" >> $OutLog
+    python3 /opt/firefox/human_app_label/NativeApp/Merge.py $connectionsWork $flowsOutput $timestamp $CurrentPID 
 else
     echo "Merge could not be done because either flows was not found or connections was not found" >> $OutLog
     echo "Make sure that [$flowsOutput] exists" >> $OutLog
@@ -538,5 +557,4 @@ echo "## JOBSTEP: 060 Finished                   " >> $OutLog
 echo "###########################################" >> $OutLog
 echo >> $OutLog
 echo >> $OutLog
-
 exit 0

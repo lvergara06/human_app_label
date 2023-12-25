@@ -1,3 +1,4 @@
+
 /*****************************************************************
  * Background.js
  *     This extenstion opens a dialog box to the
@@ -78,6 +79,7 @@ let externalHosts = [];       // List of host request that are triggered hiden f
 // tabId
 // url
 // class
+let whoisRequests = [];
 
 
 /*****************************************************************
@@ -89,7 +91,7 @@ let externalHosts = [];       // List of host request that are triggered hiden f
    This is a good place to listen if you want to cancel or redirect the request. */
 function logOnBeforeRequest(eventDetails) {
 
-    trace("logOnBeforeRequest", eventDetails);
+    // trace("logOnBeforeRequest", eventDetails);
 
     // Create an entry for this request
     // Check if there is an entry for this requestId
@@ -143,6 +145,9 @@ function logOnBeforeRequest(eventDetails) {
         }
         else
         {
+              // Call the async function
+            // let org = syncFunction(requestHandle.host);
+
             newGetMainFrameRequest = {
                 id: requestHandle.id,
                 url: requestHandle.url4Popup,
@@ -150,6 +155,7 @@ function logOnBeforeRequest(eventDetails) {
                 host: requestHandle.host
             };
             getMainFrameRequests.push(newGetMainFrameRequest);
+
         }
     }
 
@@ -160,7 +166,7 @@ function logOnBeforeRequest(eventDetails) {
    This event is triggered before sending any HTTP data, but after all HTTP headers are available.
    This is a good place to listen if you want to modify HTTP request headers. */
 function logOnBeforeSendHeaders(eventDetails) {
-    trace("logOnBeforeSendHeaders", eventDetails);
+    // trace("logOnBeforeSendHeaders", eventDetails);
 
     requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
     if (requestHandle === undefined) {
@@ -224,7 +230,7 @@ function logOnBeforeSendHeaders(eventDetails) {
    If your extension or some other extension modified headers in onBeforeSendHeaders,
    you'll see the modified version here. */
 function logOnSendHeaders(eventDetails) {
-    trace("logOnSendHeaders", eventDetails);
+    // trace("logOnSendHeaders", eventDetails);
 
     requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
     if (requestHandle === undefined) {
@@ -245,7 +251,7 @@ function logOnSendHeaders(eventDetails) {
    Fired when the HTTP response headers for a request are received.
    Use this event to modify HTTP response headers. */
 function logOnHeadersReceived(eventDetails) {
-    trace("logOnHeadersReceived", eventDetails);
+    // trace("logOnHeadersReceived", eventDetails);
     // Add destinationIp to the request 
     const requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
 
@@ -269,7 +275,7 @@ function logOnHeadersReceived(eventDetails) {
 /* onBeforeRedirect
    Fired when a request has completed. */
 function logOnBeforeRedirect(eventDetails) {
-    trace("logOnBeforeRedirect", eventDetails);
+    // trace("logOnBeforeRedirect", eventDetails);
 
     // Create a redirection entry
     const requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
@@ -289,7 +295,7 @@ function logOnBeforeRedirect(eventDetails) {
 /* onResponseStarted
    Fired when the first byte of the response body is received. */
 function logOnResponseStarted(eventDetails) {
-    trace("OnResponseStarted", eventDetails);
+    // trace("OnResponseStarted", eventDetails);
 
     requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
     if (requestHandle === undefined) {
@@ -310,7 +316,7 @@ function logOnResponseStarted(eventDetails) {
 /* onCompleted
    Fired when a request has completed. */
 async function logOnCompleted(eventDetails) {
-    trace("logOnCompleted", eventDetails);
+    // trace("logOnCompleted", eventDetails);
 
     // Log onCompleted time
     const requestHandle = requests.find(({ id }) => id === eventDetails.requestId);
@@ -320,7 +326,7 @@ async function logOnCompleted(eventDetails) {
     }
     else {
         requestHandle.completedTime = eventDetails.timeStamp;
-        console.log(requestHandle.host);
+        // console.log(requestHandle.host);
         // Let's log this
         message = {
             state: "logConnection",
@@ -349,6 +355,7 @@ async function logOnCompleted(eventDetails) {
                 else
                 {
                     getMainFrameRequestHandleById.host = requestHandle.host;
+
                 }
                 // Call pop up
                 try {
@@ -369,31 +376,146 @@ async function logOnCompleted(eventDetails) {
             }
         }
         else{
-            const requestDomain = extractDomain(requestHandle.host);
+            if (requestHandle.host === undefined) {
+                console.log("Request handle has undefined host: ");
+                console.log(requestHandle);
+                console.log("Event details: ");
+                console.log(eventDetails);
+            }
+            const requestDomain = extractDomain(requestHandle.host); // e.g., 'netflix' given www.netflix.com
+            // if (requestDomain === null) { 
+            //     console.log("requestDomain undefined! Request handle: ");
+            //     console.log(requestHandle)
+            // }
+
+            const requestDomain_TLD = extractDomain_TLD(requestHandle.originUrl); // e.g., 'www. netflix.com' given https url
+            const origin_TLD = extractDomain_host(requestHandle.host) // e.g., 'netflix.com' 
             
             // Let's make sure the host on this request matches the user's intended host
             let getHostHandle = getMainFrameRequests.find(({ host }) => {
+                if (host === undefined){
+                    console.log("host is undefined in getHostHandle. Mainframe requests: ")
+                    console.log(getMainFrameRequests);
+                }
+                else {
                 const mainFrameDomain = extractDomain(host);
-                return mainFrameDomain === requestDomain;
-              });
+                return requestDomain.includes(mainFrameDomain);
+                }
+            });
             if (getHostHandle === undefined) // Not an intended host
             {
-                requestHandle.requestStatus = "ExternalHost";
-                // This is a request from a host that isn't the users intended host
-                // Now let's check if the external host is already known
-                let getExternalHostHandle = externalHosts.find(({ host }) => host === requestHandle.host);
-                if (getExternalHostHandle === undefined){
-                    // This is the first time encountering this host
-                    newExternalHost = {
-                        id: requestHandle.id,
-                        url: requestHandle.url,
-                        tabId: requestHandle.tabId,
-                        host: requestHandle.host
-                    };
-                    externalHosts.push(newExternalHost);
-                    // Log the external connections
+                
+                      // Make a request to your server for WHOIS data
+                    // fetch('http://localhost:3000/whois', {
+                    //     method: 'POST',
+                    //     headers: {
+                    //         'Content-Type': 'application/json',
+                    //     },
+                    //     body: JSON.stringify({ domain: origin_TLD }),
+                    // })
+                    // .then(response => response.json())
+                    // // .then(data => console.log(data))
+                    // .then((data) => {
+                    //     // Log the 'whois' data to the console
+                    //     console.log('Registrant Org:', data.registrantOrganization);
+                        
+                    //     let matchingHost = getMainFrameRequests.find(({ host }) => host === requestDomain_TLD);
+
+                        
+
+                    //     if (matchingHost !== undefined && matchingHost.org === data.registrantOrganization) 
+                    //     {
+                    //     // Matching criteria satisfied
+                    //     requestHandle.requestStatus = "NetworkOperation";
+                    //     state = "addMainConnection"
+                    //     requestHandle.userSelection = userSels[userSels.length - 1];
+                    //         message = {
+                    //         state: state,
+                    //         dataIn: requestHandle,
+                    //         logFile : logFile
+                    //     };
+                    //     callNative(message);
+                    //     }
+                    //     else {
+                    //         requestHandle.requestStatus = "ExternalHost";
+                    //         let getExternalHostHandle = externalHosts.find(({ host }) => host === requestHandle.host);
+                    //         if (getExternalHostHandle === undefined){
+                    //             // This is the first time encountering this host
+                    //             newExternalHost = {
+                    //                 id: requestHandle.id,
+                    //                 url: requestHandle.url,
+                    //                 tabId: requestHandle.tabId,
+                    //                 host: requestHandle.host
+                    //             };
+                    //             externalHosts.push(newExternalHost);
+                    //             // Log the external connections
+                    //             state = "addMainConnection"
+                    //             requestHandle.userSelection = "ExternalHost";
+                    //             message = {
+                    //                 state: state,
+                    //                 dataIn: requestHandle,
+                    //                 logFile : logFile
+                    //             };
+                    //             callNative(message);
+                    //         }
+                    //     }
+                    // })
+                    // .catch(error => {
+                    //     console.error('Error fetching Whois data:', error);
+                    // });
+
+                    requestHandle.requestStatus = "ExternalHost";
+
+                    // This is a request from a host that isn't the users intended host
+                    // Now let's check if the external host is already known
+                    let getExternalHostHandle = externalHosts.find(({ host }) => host === requestHandle.host);
+                    if (getExternalHostHandle === undefined){
+                        // This is the first time encountering this host
+                        newExternalHost = {
+                            id: requestHandle.id,
+                            url: requestHandle.url,
+                            tabId: requestHandle.tabId,
+                            host: requestHandle.host
+                        };
+                        externalHosts.push(newExternalHost);
+                        // Log the external connections
+                        state = "addMainConnection"
+                        requestHandle.userSelection = "ExternalHost";
+                        message = {
+                            state: state,
+                            dataIn: requestHandle,
+                            logFile : logFile
+                        };
+                        callNative(message);
+                    }
+                }
+                // Request was triggered by intended host
+                else {
+                    
+                    //  // Make a request to your server for WHOIS data
+                    //  fetch('http://localhost:3000/whois', {
+                    //     method: 'POST',
+                    //     headers: {
+                    //         'Content-Type': 'application/json',
+                    //     },
+                    //     body: JSON.stringify({ domain: origin_TLD }),
+                    // })
+                    // .then(response => response.json())
+                    // // .then(data => console.log(data))
+                    // .then((data) => {
+                    //     // Log the 'whois' data to the console
+                    //     // console.log('Registrant Org:', data.registrantOrganization);
+
+
+                    // })
+                    // .catch(error => {
+                    //     console.error('Error fetching Whois data:', error);
+                    // });
+
+
+                    requestHandle.requestStatus = "NetworkOperation";
                     state = "addMainConnection"
-                    requestHandle.userSelection = "ExternalHost";
+                    requestHandle.userSelection = userSels[userSels.length - 1];
                     message = {
                         state: state,
                         dataIn: requestHandle,
@@ -401,19 +523,7 @@ async function logOnCompleted(eventDetails) {
                     };
                     callNative(message);
                 }
-            }
-            // Request was triggered by intended host
-            else {
-                requestHandle.requestStatus = "NetworkOperation";
-                state = "addMainConnection"
-                requestHandle.userSelection = userSels[userSels.length - 1];
-                message = {
-                    state: state,
-                    dataIn: requestHandle,
-                    logFile : logFile
-                };
-                callNative(message);
-            }
+            // }
         }
     }
 
@@ -439,17 +549,83 @@ function logCreatedTab(createdTab) {
 
 
 }
+
+// async function fetchData(domain) {
+//     const hostname = extractDomain_host(domain);
+//     try {
+//       const response = await fetch('http://localhost:3000/whois', {
+//         method: 'POST',
+//         headers: {
+//           'Content-Type': 'application/json',
+//         },
+//         body: JSON.stringify({ domain: hostname }),
+//       });
+  
+//       const data = await response.json();
+//     //   console.log('Registrant Org:', data.registrantOrganization);
+//     return data.registrantOrganization;
+//     } catch (error) {
+//       console.error('Error fetching Whois data:', error);
+//     }
+//   }
+
+//   async function syncFunction(domain) {
+//     console.log("domain in sync:", domain);
+//     try {
+//       const registrantOrg = await fetchData(domain);
+//     //   console.log('Registrant Org:', registrantOrg);
+//     return registrantOrg;
+//     } catch (error) {
+//       console.error('Error in sync function:', error);
+//     }
+//   }
+  
+  
 /*extractDomain
 * Given a hostname like subdomain.domain.topleveldomain, 
 * this function extracts domain name */
 function extractDomain(hostname) {
+    if (hostname !== undefined) {
+        const parts = hostname.split('.');
+        // Check if there are at least three parts (subdomain.domain.tld)
+        if (parts.length >= 2) {
+            return parts[parts.length - 2];
+        }
+        return null;
+    }
+    else {
+        console.log("Host is undefined in extractDomain! Host: "+ hostname);
+        return null;
+    }
+}
+
+function extractDomain_TLD(hostname) {
+
     const parts = hostname.split('.');
     // Check if there are at least three parts (subdomain.domain.tld)
-    if (parts.length >= 3) {
-        return parts[parts.length - 2];
+    if (parts.length >= 2) {
+      
+        const parsedUrl = new URL(hostname);
+        const domainParts = parsedUrl.hostname.split('.');
+        return domainParts.slice(-3).join('.');
+      
     }
+  
     return null;
-}
+  }
+
+  function extractDomain_host(hostname) {
+
+    const parts = hostname.split('.');
+    // Check if there are at least three parts (subdomain.domain.tld)
+    if (parts.length >= 2) {
+        return parts.slice(-2).join('.');
+      
+    }
+  
+    return null;
+  }
+  
 
 // On Installed
 browser.runtime.onInstalled.addListener(() => {
@@ -482,9 +658,9 @@ browser.runtime.onInstalled.addListener(() => {
 function callNative(message) {
     
     if (DEBUG === "ON") {
-        console.log("In callNative");
-        console.log("message is : " + JSON.stringify(message));
-        console.log(message);
+        // console.log("In callNative");
+        // console.log("message is : " + JSON.stringify(message));
+        // console.log(message);
     }
 
     if (message.state != "session_start" && (FirefoxPID === "" || FirefoxPID === undefined)){
@@ -506,8 +682,8 @@ function callNative(message) {
 
 function onResponse(response) {
     if (DEBUG === "ON") {
-        console.log("In onResponse");
-        console.log(response);
+        // console.log("In onResponse");
+        // console.log(response);
     }
 
     if (response.state === "session_start") {
@@ -540,7 +716,7 @@ function onResponse(response) {
         if( response.exitMessage === "Success"){
             if (response.dataOut.connections.length > 0) {
                 for (let connection of response.dataOut.connections) {
-                        console.log("connection added :" + JSON.stringify(connection));
+                        // console.log("connection added :" + JSON.stringify(connection));
                 }
             }
         }
@@ -583,6 +759,8 @@ browser.runtime.onMessage.addListener((msg) => {
         else {
             // This is the request for the get main_frame
             requestHandle.userSelection = msg.response;
+            console.log(msg)
+            console.log(requestHandle)
             // Save user selection for future use
             userSels.push(msg.response);
             message = {
@@ -673,6 +851,7 @@ function logEvent(source, eventDetails, requestHandle) {
     if (optionsExtendedWith === "All" || optionsExtendedWith.includes(source)) {
         extendedData = { source: source, eventDetails: eventDetails };
         requestHandle.extendedData.push(extendedData);
+        console.log(requestHandle);
     }
 }
 
@@ -681,12 +860,12 @@ function trace(source, eventDetails) {
         console.log("Entrace to " + source);
         
         console.log(eventDetails);
-        console.log("Requests: ")
-        console.log(requests);
-        console.log("MainFrameReqs: ");
-        console.log(getMainFrameRequests);
-        console.log("External hosts: ");
-        console.log(externalHosts);
+        // console.log("Requests: ")
+        // console.log(requests);
+        // console.log("MainFrameReqs: ");
+        // console.log(getMainFrameRequests);
+        // console.log("External hosts: ");
+        // console.log(externalHosts);
     }
 }
 
