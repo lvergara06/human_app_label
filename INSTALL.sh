@@ -148,6 +148,15 @@ else
     echo "python-whois is already installed."
 fi
 
+# Install pandas
+if ! command pip show pandas &> /dev/null; then
+    echo "pandas is not installed. Installing now..."
+    sudo pip install pandas
+    echo "pandas installed."
+else
+    echo "pandas is already installed."
+fi
+
 echo
 
 # Install Node.js
