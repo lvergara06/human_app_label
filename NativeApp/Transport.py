@@ -251,46 +251,6 @@ try:
         responseMessage['exitMessage'] = errorMsg
         logEvent(receivedMessage['state'], receivedMessage['dataIn'], responseMessage['dataOut'], responseMessage['exitMessage'], logFile)
         sendMessage(encodeMessage(responseMessage))
-    #
-    # netstat_to_file - takes a snap shot of netstat. The after snapshot will also check what has changed and compare it to dest ip. 
-    #
-    def netstat_to_file(receivedMessage):
-        responseMessage = {}
-        responseMessage['state'] = receivedMessage['state']
-        responseMessage['dataOut'] = []
-        responseMessage['exitMessage'] = ""
-        logFile = receivedMessage['logFile']
-        
-        state = receivedMessage['state']
-        FirefoxPID = receivedMessage['dataIn']['FirefoxPID']
-        requestId = receivedMessage['dataIn']['id']
-
-            # The timestamp will help keep different logs on similar ids
-        timestamp = timeStamp
-
-        directory = snapsDir
-        os.makedirs(directory, exist_ok=True)
-
-        if state == "snapBefore":
-            snapshot_file = f"{snapsDir}/snapBefore.{FirefoxPID}.{requestId}.{timestamp}.out"
-        elif state == "snapAfter":
-            snapshot_file = f"{snapsDir}/snapAfter.{FirefoxPID}.{requestId}.{timestamp}.out"
-        
-        responseMessage['dataOut'].append(("snapFile", snapshot_file))
-
-        with open(snapshot_file, 'w') as outputFile:
-            p = subprocess.Popen(["netstat", "-antp", "|", "grep", FirefoxPID], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-            # Wait for the subprocess to finish and capture the output
-            subprocess_output, subprocess_error = p.communicate()
-
-            # Check if the subprocess completed successfully
-            if p.returncode == 0:
-                # Process or use the output as needed
-                outputFile.write(subprocess_output.decode())  # Output from stdout
-
-        logEvent(receivedMessage['state'], receivedMessage['dataIn'], responseMessage['dataOut'], responseMessage['exitMessage'], logFile)
-        return sendMessage(encodeMessage(responseMessage))
     
     # A main connection consists of a user selection
     # We will want to take a diff of before and after snap to find new netstat rows
@@ -345,10 +305,6 @@ try:
             session_start(receivedMessage);
         elif receivedMessage['state'] == "logConnection":
             write_data_to_file(receivedMessage);
-        elif receivedMessage['state'] == "snapBefore":
-            netstat_to_file(receivedMessage);
-        elif receivedMessage['state'] == "snapAfter":
-            netstat_to_file(receivedMessage);
         elif receivedMessage['state'] == "addMainConnection":
             add_main_connection(receivedMessage);
         else :

@@ -127,6 +127,13 @@ install_package "python3-pip"
 
 echo
 
+# Install requests
+sudo pip install requests
+echo "requests installed"
+
+echo
+
+
 # Install Node.js
 echo "Installing Node.js"
 install_package "curl"
@@ -166,6 +173,23 @@ echo "Installing netstat"
 install_package "net-tools"
 
 echo
+
+# Install whois
+echo "Installing whois"
+install_package "whois"
+
+echo 
+
+echo "Installing BeautifulSoup"
+install_package "python3-bs4"
+
+echo
+
+echo "Installing PyQt5"
+install_package "python3-pyqt5"
+
+echo
+
 #Install ndpi
 if ! ls -l /usr/lib/libndpi.so | grep 4.0.0 &> /dev/null; then
     # Clone pmacct repository

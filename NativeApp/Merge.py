@@ -3,11 +3,19 @@ import sys
 import pytz
 import pandas as pd
 import time
-from PyQt5.QtWidgets import QApplication, QProgressBar, QProgressDialog, QWidget, QVBoxLayout, QSizePolicy
+from PyQt5.QtWidgets import QApplication, QProgressBar, QProgressDialog, QWidget, QVBoxLayout, QSizePolicy, QLabel, QDesktopWidget
 from PyQt5.QtCore import Qt, QCoreApplication
+from PyQt5.QtGui import QIcon, QPixmap
 import sys 
 import whois
+import requests
+from bs4 import BeautifulSoup
+import sys
+import json
+from urllib.parse import urlparse
+debugging = False
 
+# nDPI Protocol --> Category mapping 
 data = {
     "Unknown": "Unspecified",
     "FTP_CONTROL": "Download",
@@ -348,53 +356,107 @@ data = {
 # from Dataframe
 def extract_values(row):
     col0_values = row[0].split(',')
-    return pd.Series([col0_values[0], col0_values[1], col0_values[2], col0_values[3], col0_values[4],
-                      col0_values[5],col0_values[6],col0_values[7],col0_values[8],col0_values[9], col0_values[10], row[1], row[2], row[3]])
+    return pd.Series([col0_values[0], col0_values[1], col0_values[2], \
+                      col0_values[3], col0_values[4], col0_values[5], \
+                          col0_values[6],col0_values[7],col0_values[8], \
+                              col0_values[9], col0_values[10], row[1], row[2],\
+                                  row[3], row[4]])
 
 # This function updates the progress bar
 def update_progress(progress_dialog, value):
     progress_dialog.setValue(value)
     QApplication.processEvents()
-
-# This function extracts value from 'org' key 
-# If 'org' is NONE, revert to 'registrant_name' or 'registrar' as fallbacks
-def extract_organization(result):
-    organization = result.get('org') or result.get('tech_organization') or result.get('registrant_name') or result.get('registrar', None)
-    return organization
-
-# This function takes a host name in the format subdomain.domain.tld
-# and returns domain.tld 
-def extract_domain_host(hostname):
-    parts = hostname.split('.')
-    if len(parts) >= 2:
-        return '.'.join(parts[-2:]).strip()
-    return None
-
+    
 # This function does WHOIS query on host and uses IP in the case that 
 # org
-def whois_lookup(host, fallback_ip):
+def whois_lookup(host, fallback_ip, fallback_whois):
+    
     try:
         if fallback_ip:
             result = whois.whois(fallback_ip)
         else:
             result = whois.whois(host)
-
-        organization = extract_organization(result)
+            
+       
+        organization = extract_organization(result, fallback_whois)
         # print(f"{host} Registrant Org.:{organization}")
         return organization
     except Exception as e:
         print(f"Error during WHOIS lookup for {host}: {e}")
         return None
 
-## Global Variables
-connectionsFile = ""
-flowFile = ""
-timestamp = ""
-pid = ""
+def whois_scraper(domain):
+    url = f"https://www.whois.com/whois/{domain}"
 
-## Max difference between connection epoch and pcmacct epoch
-## TODO: Make the timeWindow an option in Transport.py
-timeWindow = 120000
+    response = requests.get(url)
+    
+    # Check if the request was successful (status code 200)
+    if response.status_code == 200:
+        soup = BeautifulSoup(response.text, 'html.parser')
+        # if soup and soup.find('Registrant Organization'):
+        # print(soup)
+        if soup and soup.find('pre', {'id': 'registrarData'}) or soup.find('pre', {'id':'registryData'}):
+            registry_data = soup.find('pre', {'id': 'registryData'})
+            registrar_data = soup.find('pre', {'id': 'registrarData'})
+            
+            if registry_data:
+                raw_whois_data = soup.find('pre', {'id': 'registryData'}).text
+            elif registrar_data:
+                raw_whois_data = soup.find('pre', {'id': 'registrarData'}).text
+            try:
+                # Find the line containing "Registrant Organization" and extract the value
+                registrant_organization_line = next(
+                    line for line in raw_whois_data.split('\n') if 'Registrant Organization' in line
+                )
+                parts = registrant_organization_line.split(': ', 1)
+                
+                if len(parts) >= 2:
+                    # Extract the value after the ":" in the line
+                    
+                    
+                    registrant_organization = parts[1]
+                    return registrant_organization
+                else:
+                    return None
+            except StopIteration:
+                return None
+        else: 
+            return None
+    else:
+        print(f"Failed to retrieve information. Status code: {response.status_code}")
+        return None
+
+    
+# This function extracts value from 'org' key 
+def extract_organization(result, fallback):
+    if not fallback:
+        organization = result.get('org', None)
+    else:
+        organization = result.get('tech_organization') or result.get('registrant_name') or result.get('registrar', None)
+    return organization
+
+# This function takes a host name or url and returns domain.tld 
+def extract_domain_host(hostname, is_url):
+    if url: 
+        parsed_url = urlparse(hostname)
+        if parsed_url.netloc:
+            # Split the domain into parts
+            domain_parts = parsed_url.netloc.split('.')
+            if len(domain_parts) >= 2:
+                return '.'.join(domain_parts[-2:]).strip()
+        return None
+    else:
+        parts = hostname.split('.')
+        if len(parts) >= 2:
+            return '.'.join(parts[-2:]).strip()
+        return None
+    
+def print_df(df):
+    if debugging:
+        with pd.option_context('display.max_rows', None, 'display.max_columns', None):
+            print(df)
+    else:
+        pass
 
 ## Get args
 def getOptions():
@@ -416,91 +478,148 @@ def getOptions():
     print("PID is: " + pid)
     return
 
-## Start
-getOptions()
+## Global Variables
+connectionsFile = ""
+flowFile = ""
+timestamp = ""
+pid = ""
+
+## Max difference between connection epoch and pcmacct epoch
+## TODO: Make the timeWindow an option in Transport.py
+timeWindow = 120000
+
+if debugging:
+    connectionsFile = '/opt/firefox/human_app_label/NativeApp/work/connections.14935.20240206065613.csv'
+    flowFile = '/opt/firefox/human_app_label/pmacct/flows/flows.14945.csv'
+else:
+    getOptions()
 
 flows_data = []  # List to store data for DataFrame
 
+# Initialize QApplication
+app = QApplication([])
+widget = QWidget()
+layout = QVBoxLayout()
+
+# Initialize progress bar
+progress_dialog = QProgressBar()
+progress_dialog.setFixedHeight(20)
+progress_dialog.setFixedWidth(500)
+title_label = QLabel("Matching URLs")
+
+matching_icon = QLabel()
+icon_path = "/opt/firefox/human_app_label/NativeApp/matching.png"
+pixmap = QPixmap(icon_path)
+# pixmap = pixmap.scaledToWidth(25)
+pixmap = pixmap.scaledToHeight(60)  
+matching_icon.setPixmap(pixmap)
+
+
+layout.addWidget(title_label, alignment=Qt.AlignCenter)
+layout.addWidget(matching_icon, alignment=Qt.AlignCenter)
+layout.addWidget(progress_dialog, alignment=Qt.AlignCenter)
+widget.setLayout(layout)
+
+# Get the screen geometry to position the progress bar in the center
+screen_rect = QDesktopWidget().screenGeometry()
+widget_width = 500
+widget_height = 30
+widget.setGeometry(
+    screen_rect.width() // 2 - widget_width // 2,
+    screen_rect.height() // 2 - widget_height // 2,
+    widget_width,
+    widget_height
+)
+
+widget.setWindowFlags(widget.windowFlags() | Qt.WindowStaysOnTopHint)
+
+widget.show()
 
 ## Open files
 ## Save original stdout to print messages
+# TODO: Implement using Dataframes, not file opener interface
 original_stdout = sys.stdout
 with open(connectionsFile, 'r') as source1,\
-     open(flowFile, 'r') as source2:
-    flows = source2.readlines()
-    for flow in flows:
-        splitFlow = flow.split(',')
-        flowClass = splitFlow[0]
-        flowSourceIp = splitFlow[1]
-        flowDestinationIp = splitFlow[2]
-        flowSourcePort = splitFlow[3]
-        flowDestinationPort = splitFlow[4]
-        flowStartTime = splitFlow[6]
-        flowCategory = data.get(flowClass, "Unknown")  
-        # Skip the header fields
-        if flowStartTime == "TIMESTAMP_START":
-            continue
-        # This is an adjustment to get mountain to UTC timestamp from pmacct
-        # If your pmacct timestamps are in UTC then you will have to remove this.
-        try:
-            # Convert the local time string to a datetime object
-            local_time = datetime.strptime(flowStartTime, "%Y-%m-%d %H:%M:%S.%f")
-
-            # Get the local timezone
-            # TODO: MAKE THIS NOT NEEDED
-            local_tz = pytz.timezone('America/Denver')
-
-            # Localize the datetime object to the local timezone
-            localized_time = local_tz.localize(local_time, is_dst=None)
-
-            # Convert the localized datetime to UTC
-            utc_time = localized_time.astimezone(pytz.utc)
-
-            # Calculate the flowEpoch timestamp
-            flowEpoch = int((utc_time - datetime(1970, 1, 1, tzinfo=pytz.utc)).total_seconds() * 1000)
-        except Exception as e:
-            print(f"Error: {e}")
-
-        # print("flow:" + flowSourceIp + " " + flowDestinationIp + " " + flowSourcePort + " " + flowDestinationPort + " "  + str(flowEpoch) )
-        source1.seek(0)
-        connections = source1.readlines()
-
-        # Flag to indicate if a match is found
+      open(flowFile, 'r') as source2:
+    connections = source1.readlines()
+    total_connections = len(connections)
+    current_connection = 0
+    for connection in connections:
+        current_connection += 1
+        progress_percentage = int((current_connection / total_connections) * 100)
+        update_progress(progress_dialog, progress_percentage)
+        splitConnection = connection.split(',')
+        connectionDestinationIp = splitConnection[0]
+        connectionDestinationPort = splitConnection[1]
+        connectionUserSelection = splitConnection[4]
+        connectionOriginURL = splitConnection[5]
+        connectionEpoch = splitConnection[3]
+        connectionHost = splitConnection[7]
+        source2.seek(0)
+        flows = source2.readlines()
+      
         match_found = False
-
-        for connection in connections:
-            splitConnection = connection.split(',')
-            connectionDestinationIp = splitConnection[0]
-            connectionDestinationPort = splitConnection[1]
-            connectionUserSelection = splitConnection[4]
-            connectionEpoch = splitConnection[3]
-            connectionHost = splitConnection[7]
-            diff = abs(int(connectionEpoch) - flowEpoch)
-            # print("connection:" + connectionSourceIp + " " +  connectionDestinationIp + " " + connectionSourcePort + " " + connectionDestinationPort + " " + connectionEpoch)
-            if (
-                flowDestinationIp == connectionDestinationIp
-                and flowDestinationPort == connectionDestinationPort
-                and abs(int(connectionEpoch) - flowEpoch) < timeWindow
-            ):
-                # print(flow + "," + connectionUserSelection + "," + connectionHost + "," +  flowCategory)
-                flows_data.append([flow, connectionUserSelection, connectionHost, flowCategory])
+        
+        for flow in flows:
+            splitFlow = flow.split(',')
+            flowClass = splitFlow[0]
+            flowSourceIp = splitFlow[1]
+            flowDestinationIp = splitFlow[2]
+            flowSourcePort = splitFlow[3]
+            flowDestinationPort = splitFlow[4]
+            flowStartTime = splitFlow[6]
+            flowCategory = data.get(flowClass, "Unknown")  
+        
+            if flowStartTime == "TIMESTAMP_START":
+                continue
+            # This is an adjustment to get mountain to UTC timestamp from pmacct
+            # If your pmacct timestamps are in UTC then you will have to remove this.
+            try:
+                # Convert the local time string to a datetime object
+                local_time = datetime.strptime(flowStartTime, "%Y-%m-%d %H:%M:%S.%f")
+    
+                # Get the local timezone
+                # TODO: MAKE THIS NOT NEEDED
+                local_tz = pytz.timezone('America/Denver')
+    
+                # Localize the datetime object to the local timezone
+                localized_time = local_tz.localize(local_time, is_dst=None)
+    
+                # Convert the localized datetime to UTC
+                utc_time = localized_time.astimezone(pytz.utc)
+    
+                # Calculate the flowEpoch timestamp
+                flowEpoch = int((utc_time - datetime(1970, 1, 1, tzinfo=pytz.utc)).total_seconds() * 1000)
+            except Exception as e:
+                print(f"Error: {e}")
+                
+            if ( (connectionDestinationIp == flowDestinationIp and connectionDestinationPort == flowDestinationPort and abs(int(connectionEpoch) - flowEpoch) <= timeWindow) or (connectionDestinationIp == flowSourceIp and connectionDestinationPort == flowSourcePort and abs(int(connectionEpoch) - flowEpoch) <= timeWindow) ):
+                flows_data.append([flow, connectionUserSelection, connectionHost, connectionOriginURL, flowCategory])
                 match_found = True
                 break  # Break from the inner loop when a match is found
 
-        # Check the flag before moving to the next item in source2
+        # Check the flag before moving to the next item in flows file
         if match_found:
             continue
-# Convert list of lists to DataFrame
-df = pd.DataFrame(flows_data)
+    update_progress(progress_dialog, 100)
 
+widget.close()
+
+df = pd.DataFrame(flows_data)
 df = df.apply(extract_values, axis=1)
 
 # Give names to columns in pmacct format
-df.columns = ['nDPI Label','SRC_IP','DST_IP','SRC_PORT','DST_PORT','PROTOCOL','TIMESTAMP_START','TIMESTAMP_END', 'TIMESTAMP_ARRIVAL', 'PACKETS','BYTES', 'Human Label', 'Host','Category']
+df.columns = ['nDPI Label','SRC_IP','DST_IP','SRC_PORT','DST_PORT','PROTOCOL','TIMESTAMP_START','TIMESTAMP_END', 'TIMESTAMP_ARRIVAL', 'PACKETS','BYTES', 'Human Label', 'Host','Origin URL','Category']
 
 
+if debugging:
+    df = pd.read_csv('debugging.csv')
+    df.to_csv('debugging.csv', index = False)
+    
 # list of all unique human labels present in the output
 unique_labels = df['Human Label'].unique()
+
+
 
 # empty dictionary to hold multiple dataframes that map to human labels
 dfs = {}
@@ -527,303 +646,794 @@ for label, df_split in dfs.items():
 try:
     video_streaming_df = video_streaming_df
 except Exception as e: 
-    print(f'{e}')
+    print(e)
     
 try:
     shopping_df = shopping_df
 except Exception as e: 
-    print(f'{e}')
+    print(e)
 
 try: 
     information_browsing_df = information_browsing_df
 except Exception as e:
-    print(f'{e}')
+    print(e)
 
 try:
     externalhost_df = externalhost_df
 except Exception as e: 
-    print(f'{e}')
+    print(e)
     
 try:
     email_df = email_df
 except Exception as e: 
-    print(f'{e}')
+    print(e)
 
 try:
     news_df = news_df
 except Exception as e: 
-    print(f'{e}')
+    print(e)
     
 try: 
     sm_df = social_media_df
 except Exception as e: 
-    print(f'{e}')
+    print(e)
 
 ################################ Formatting ###################################
-try:        
-    video_streaming_df['Host'] = video_streaming_df['Host'].apply(extract_domain_host)
+try:  
+    url = False
+    video_streaming_df['Host'] = video_streaming_df['Host'].apply(extract_domain_host, is_url = url)
     video_streaming_df = video_streaming_df[video_streaming_df['Host'].notna()] 
-    video_streaming_df['Organization'] = None
-    gt_row_streaming = video_streaming_df.head(1).copy()
-    gt_row_streaming['Host'] = gt_row_streaming['Host'].apply(extract_domain_host)
+    video_streaming_df['Organization'] = None 
+    video_streaming_df['Organization_tolower_stripped'] = None
+    gt_row_streaming = video_streaming_df.drop_duplicates(subset='Host')
+    gt_row_streaming['Host'] = gt_row_streaming['Host'].apply(extract_domain_host, is_url = url)
     gt_row_streaming = gt_row_streaming[gt_row_streaming['Host'].notna()] 
+    url = True
+    gt_row_streaming['URL Parsed'] = gt_row_streaming['Origin URL'].apply(extract_domain_host, is_url = url)
+    gt_row_streaming = gt_row_streaming[gt_row_streaming['URL Parsed'].notna()]
     org_gt_streaming = None
 except Exception as e: 
-    print(f'{e}')
+    print(e)
     
-try:        
-    shopping_df['Host'] = shopping_df['Host'].apply(extract_domain_host)
+try:   
+    url = False     
+    shopping_df['Host'] = shopping_df['Host'].apply(extract_domain_host, is_url = url)
     shopping_df = shopping_df[shopping_df['Host'].notna()]  
     shopping_df['Organization'] = None
-    gt_row_shopping = shopping_df.head(1).copy()
-    gt_row_shopping['Host'] = gt_row_shopping['Host'].apply(extract_domain_host)
+    shopping_df['Organization_tolower_stripped'] = None
+    gt_row_shopping = shopping_df.drop_duplicates(subset='Host')
+    gt_row_shopping['Host'] = gt_row_shopping['Host'].apply(extract_domain_host, is_url = url)
     gt_row_shopping = gt_row_shopping[gt_row_shopping['Host'].notna()] 
+    url = True
+    gt_row_shopping['URL Parsed'] = gt_row_shopping['Origin URL'].apply(extract_domain_host, is_url = url)
+    gt_row_shopping = gt_row_shopping[gt_row_shopping['URL Parsed'].notna()]
     org_gt_shopping = None      
 except Exception as e: 
     print(e)
 
-try:        
-    email_df['Host'] = email_df['Host'].apply(extract_domain_host)
+try:    
+    url = False    
+    email_df['Host'] = email_df['Host'].apply(extract_domain_host, is_url = url)
     email_df = email_df[email_df['Host'].notna()] 
     email_df['Organization'] = None
-    gt_row_email = email_df.head(1).copy()
-    gt_row_email['Host'] = gt_row_email['Host'].apply(extract_domain_host)
+    email_df['Organization_tolower_stripped'] = None
+    gt_row_email = email_df.drop_duplicates(subset='Host')
+    gt_row_email['Host'] = gt_row_email['Host'].apply(extract_domain_host, is_url = url)
     gt_row_email = gt_row_email[gt_row_email['Host'].notna()]
+    url = True
+    gt_row_email['URL Parsed'] = gt_row_email['Origin URL'].apply(extract_domain_host,is_url = url)
+    gt_row_email = gt_row_email[gt_row_email['URL Parsed'].notna()]
     org_gt_email = None
+    
 except Exception as e: 
     print(e)
     
-try:        
-    information_browsing_df['Host'] = information_browsing_df['Host'].apply(extract_domain_host)
-    information_browsing_df = information_browsing_df[email_df['Host'].notna()] 
+try:
+    url = False      
+    information_browsing_df['Host'] = information_browsing_df['Host'].apply(extract_domain_host, is_url = url)
+    information_browsing_df = information_browsing_df[information_browsing_df['Host'].notna()] 
     information_browsing_df['Organization'] = None
-    gt_row_browsing = information_browsing_df.head(1).copy()
-    gt_row_browsing['Host'] = gt_row_browsing['Host'].apply(extract_domain_host)
+    information_browsing_df['Organization_tolower_stripped'] = None
+    gt_row_browsing = information_browsing_df.drop_duplicates(subset='Host')
+    gt_row_browsing['Host'] = gt_row_browsing['Host'].apply(extract_domain_host, is_url = url)
     gt_row_browsing = gt_row_browsing[gt_row_browsing['Host'].notna()] 
+    url = True
+    gt_row_browsing['URL Parsed'] = gt_row_browsing['Origin URL'].apply(extract_domain_host, is_url = url)
+    gt_row_browsing = gt_row_browsing[gt_row_browsing['URL Parsed'].notna()]
     org_gt_browsing = None 
+    
 except Exception as e: 
     print(e)
     
-try:        
-    news_df['Host'] = news_df['Host'].apply(extract_domain_host)
+try:   
+    url = False     
+    news_df['Host'] = news_df['Host'].apply(extract_domain_host, is_url = url)
     news_df = news_df[news_df['Host'].notna()] 
     news_df['Organization'] = None
-    gt_row_news = news_df.head(1).copy()
-    gt_row_news['Host'] = gt_row_news['Host'].apply(extract_domain_host)
+    news_df['Organization_tolower_stripped'] = None
+    gt_row_news = news_df.drop_duplicates(subset='Host')
+    gt_row_news['Host'] = gt_row_news['Host'].apply(extract_domain_host, is_url = url)
     gt_row_news = gt_row_news[gt_row_news['Host'].notna()]
+    url = True
+    gt_row_news['URL Parsed'] = gt_row_news['Origin URL'].apply(extract_domain_host, is_url = url)
+    gt_row_news = gt_row_news[gt_row_news['URL Parsed'].notna()]
     org_gt_news = None 
 except Exception as e: 
     print(e)
     
-try:        
-    sm_df['Host'] = sm_df['Host'].apply(extract_domain_host)
+try: 
+    url = False       
+    sm_df['Host'] = sm_df['Host'].apply(extract_domain_host, is_url = url)
     sm_df = sm_df[sm_df['Host'].notna()] 
     sm_df['Organization'] = None
-    gt_row_sm = sm_df.head(1).copy()
-    gt_row_sm['Host'] = gt_row_sm['Host'].apply(extract_domain_host)
-    gt_row_sm = gt_row_sm[gt_row_news['Host'].notna()]
+    sm_df['Organization_tolower_stripped'] = None
+    sm_df['URL Parsed'] = None
+    gt_row_sm = sm_df.drop_duplicates(subset='Host')
+    gt_row_sm['Host'] = gt_row_sm['Host'].apply(extract_domain_host, is_url = url)
+    gt_row_sm = gt_row_sm[gt_row_sm['Host'].notna()]
+    url = True
+    gt_row_sm['URL Parsed'] = gt_row_sm['Origin URL'].apply(extract_domain_host, is_url = url)
+    gt_row_sm = gt_row_sm[gt_row_sm['URL Parsed'].notna()]
     org_gt_sm = None 
 except Exception as e: 
     print(e)
     
 try:        
-    externalhost_df['Host'] = externalhost_df['Host'].apply(extract_domain_host)
+    url = False
+    externalhost_df['Host'] = externalhost_df['Host'].apply(extract_domain_host, is_url = url)
     externalhost_df = externalhost_df[externalhost_df['Host'].notna()] 
+    url = True
+    externalhost_df['URL Parsed'] = externalhost_df['Origin URL'].apply(extract_domain_host, is_url = url)
+    externalhost_df = externalhost_df[externalhost_df['URL Parsed'].notna()]
     externalhost_df['Organization'] = None
+    externalhost_df['Organization_tolower_stripped'] = None
+    
+    ## TODO: Make sure program works with no external hosts
     unique_hosts = externalhost_df['Host'].unique()
+    if debugging:
+        print('Unique external hosts: ')
+        print(unique_hosts)
 except Exception as e: 
     print(e)
 
-############### WHOIS ################################
+################################ WHOIS #######################################
 try: 
     for host in gt_row_streaming['Host']:
-        org_gt_streaming = extract_organization(whois.whois(host))
-        gt_row_streaming.loc[gt_row_streaming['Host'] == host, 'Organization'] = org_gt_streaming
-    mainOrg_streaming = gt_row_streaming['Organization'].values[0]
+        fallback_ip = None
+        fallback_whois = False
+        result = whois_lookup(host, fallback_ip, fallback_whois)
 
+        if isinstance(result, list):
+            org_gt_streaming = result[0]
+        else:
+            org_gt_streaming = result
+        
+        if org_gt_streaming is not None:
+            print(f"Registrant org for {host}: {org_gt_streaming}")
+        time.sleep(1)
+        
+        if org_gt_streaming is None or org_gt_streaming.strip() == '':
+            
+            print(f'Whois failed for host {host}! Using webscrape...')
+            result = whois_scraper(host)
+            
+            if isinstance(result, list):
+                org_gt_streaming = result[0]
+            else:
+                org_gt_streaming = result
+            
+            if org_gt_streaming is not None:
+                print(f"Registrant org found for host {host} using webscrape: {org_gt_streaming}")
+                
+            time.sleep(1)
+            
+        if org_gt_streaming is None or org_gt_streaming.strip() == '':
+            print(f'Whois failed for host {host}! Trying again...')
+            fallback_whois = True
+            result = whois_lookup(host, fallback_ip, fallback_whois)
+           
+            if isinstance(result, list):
+                org_gt_streaming = result[0]
+            else:
+                org_gt_streaming = result
+            if org_gt_streaming is not None:
+                print(f"Registrant org for {host}: {org_gt_streaming}")
+                
+            time.sleep(1)
+            
+        if org_gt_streaming is None or org_gt_streaming.strip() == '':
+            fallback_ip = gt_row_streaming.loc[gt_row_streaming['Host'] == host, 'DST_IP'].values[0]
+            print(f"Whois failed! Using IP {fallback_ip}...")
+            result = whois_lookup(host, fallback_ip, fallback_whois)
+         
+            if isinstance(result, list):
+                org_gt_streaming = result[0]
+            else:
+                org_gt_streaming = result
+                
+            if org_gt_streaming is not None:
+                print(f"Registrant org found for host {host} using IP: {fallback_ip}: {org_gt_streaming}")
+            time.sleep(1)
+    
+        gt_row_streaming.loc[gt_row_streaming['Host'] == host, 'Organization'] = org_gt_streaming
+        gt_row_streaming.loc[gt_row_streaming['Host'] == host, 'Organization_tolower_stripped'] = org_gt_streaming.split()[0].lower()
 except Exception as e: 
-    print(f"{e}")
+    print(e)
     
 try: 
     for host in gt_row_shopping['Host']:
-        org_gt_shopping = extract_organization(whois.whois(host))
+        fallback_ip = None
+        fallback_whois = False
+        result = whois_lookup(host, fallback_ip, fallback_whois)
+
+        if isinstance(result, list):
+            org_gt_shopping = result[0]
+            
+        else:
+            org_gt_shopping = result
+        if org_gt_shopping is not None:
+            print(f"Registrant org for {host}: {org_gt_shopping}")
+        time.sleep(1)
+        
+        if org_gt_shopping is None or org_gt_shopping.strip() == '':
+            
+            print(f'Whois failed for host {host}! Using webscrape...')
+            result = whois_scraper(host)
+            
+            if isinstance(result, list):
+                org_gt_shopping = result[0]
+                
+            else:
+                org_gt_shopping = result
+                
+            if org_gt_shopping is not None:
+                print(f"Registrant org found for host {host} using webscrape: {org_gt_shopping}")
+            time.sleep(1)
+            
+        if org_gt_shopping is None or org_gt_shopping.strip() == '':
+            print(f'Whois failed for host {host}! Trying again...')
+            fallback_whois = True
+            result = whois_lookup(host, fallback_ip, fallback_whois)
+            
+            if isinstance(result, list):
+                org_gt_shopping = result[0]
+            else:
+                org_gt_shopping = result
+            if org_gt_shopping is not None:
+                print(f"Registrant org for {host}: {org_gt_shopping}")
+            time.sleep(1)
+            
+        if org_gt_shopping is None or org_gt_shopping.strip() == '': 
+            fallback_ip = gt_row_shopping.loc[gt_row_shopping['Host'] == host, 'DST_IP'].values[0]
+            print(f"Whois failed! Using IP {fallback_ip}...")
+            result = whois_lookup(host, fallback_ip, fallback_whois)
+         
+            if isinstance(result, list):
+                org_gt_shopping = result[0]
+            else:
+                org_gt_shopping = result
+            if org_gt_shopping is not None:
+                print(f"Registrant org found for host {host} using IP: {fallback_ip}: {org_gt_shopping}")
+            time.sleep(1)
+           
         gt_row_shopping.loc[gt_row_shopping['Host'] == host, 'Organization'] = org_gt_shopping
-    mainOrg_shopping = gt_row_shopping['Organization'].values[0]
+        gt_row_shopping.loc[gt_row_shopping['Host'] == host, 'Organization_tolower_stripped'] = org_gt_shopping.split()[0].lower()
+        
 except Exception as e: 
-    print(f'{e}')
+    print(e)
 
 try: 
     for host in gt_row_email['Host']:
-        org_gt_email = extract_organization(whois.whois(host))
+        fallback_ip = None
+        fallback_whois = False
+        result = whois_lookup(host, fallback_ip, fallback_whois)
+
+        if isinstance(result, list):
+            org_gt_email = result[0]
+        else:
+            org_gt_email = result
+        if org_gt_email is not None:
+            print(f"Registrant org for {host}: {org_gt_email}")
+        time.sleep(1)
+        
+        if org_gt_email is None or org_gt_email.strip() == '':
+            
+            print(f'Whois failed for host {host}! Using webscrape...')
+            result = whois_scraper(host)
+            
+            if isinstance(result, list):
+                org_gt_email = result[0]
+            else:
+                org_gt_email = result
+            if org_gt_email is not None:
+                print(f"Registrant org found for host {host} using webscrape: {org_gt_email}")
+            time.sleep(1)
+            
+        if org_gt_email is None or org_gt_email.strip() == '':
+            print(f'Whois failed for host {host}! Using fallback methods...')
+            fallback_whois = True
+            result = whois_lookup(host, fallback_ip, fallback_whois)
+            
+            if isinstance(result, list):
+                org_gt_email = result[0]
+            else:
+                org_gt_email = result
+            if org_gt_email is not None:
+                print(f"Registrant org for {host}: {org_gt_email}")
+            time.sleep(1)
+            
+        if org_gt_email is None or org_gt_email.strip() == '':
+            fallback_ip = gt_row_email.loc[gt_row_email['Host'] == host, 'DST_IP'].values[0]
+            print(f"Whois failed for host {host}! Trying again...")
+            result = whois_lookup(host, fallback_ip, fallback_whois)
+         
+            if isinstance(result, list):
+                org_gt_email = result[0]
+            else:
+                org_gt_email = result
+                
+            if org_gt_email is not None:
+                print(f"Registrant org found for host {host} using IP: {fallback_ip}: {org_gt_email}")
+            time.sleep(1)
+        
         gt_row_email.loc[gt_row_email['Host'] == host, 'Organization'] = org_gt_email
-    mainOrg_email = gt_row_email['Organization'].values[0]
+        gt_row_email.loc[gt_row_email['Host'] == host, 'Organization_tolower_stripped'] = org_gt_email.split()[0].lower()
 except Exception as e: 
     print(f'{e}')
     
 try: 
     for host in gt_row_browsing['Host']:
-        org_gt_browsing = extract_organization(whois.whois(host))
+        fallback_ip = None
+        fallback_whois = False
+        result = whois_lookup(host, fallback_ip, fallback_whois)
+
+        if isinstance(result, list):
+            org_gt_browsing = result[0]
+        else:
+            org_gt_browsing = result
+            
+        if org_gt_browsing is not None:
+            print(f"Registrant org for {host}: {org_gt_browsing}")
+        
+        time.sleep(1)
+        
+        if org_gt_browsing is None or org_gt_browsing.strip() == '':
+            
+            print(f'Whois failed for host {host}! Using webscrape...')
+            result = whois_scraper(host)
+            
+            if isinstance(result, list):
+                org_gt_browsing = result[0]
+            else:
+                org_gt_browsing = result
+                
+            if org_gt_browsing is not None:
+                print(f"Registrant org found for host {host} using webscrape: {org_gt_browsing}")
+            time.sleep(1)
+            
+        if org_gt_browsing is None or org_gt_browsing.strip() == '':
+            print(f'Whois failed for {host}! Trying again...')
+            fallback_whois = True
+            result = whois_lookup(host, fallback_ip, fallback_whois)
+            
+            if isinstance(result, list):
+                org_gt_browsing = result[0]
+            else:
+                org_gt_browsing = result
+            if org_gt_browsing is not None:
+                print(f"Registrant org for {host}: {org_gt_browsing}")
+                
+            time.sleep(1)
+        if org_gt_browsing is None or org_gt_browsing.strip() == '':
+            fallback_ip = gt_row_browsing.loc[gt_row_browsing['Host'] == host, 'DST_IP'].values[0]
+            print(f"Whois failed! Using IP {fallback_ip}...")
+            result = whois_lookup(host, fallback_ip, fallback_whois)
+         
+            if isinstance(result, list):
+                org_gt_browsing = result[0]
+            else:
+                org_gt_browsing = result
+            if org_gt_email is not None:
+                print(f"Registrant org found for host {host} using IP: {fallback_ip}: {org_gt_browsing}")
+            time.sleep(1)
+            
         gt_row_browsing.loc[gt_row_browsing['Host'] == host, 'Organization'] = org_gt_browsing
-    mainOrg_browsing = gt_row_browsing['Organization'].values[0]
+        gt_row_browsing.loc[gt_row_browsing['Host'] == host, 'Organization_tolower_stripped'] = org_gt_browsing.split()[0].lower()
 except Exception as e: 
-    print(f'{e}')
+    print(e)
 
 try: 
     for host in gt_row_news['Host']:
-        org_gt_news = extract_organization(whois.whois(host))
+        fallback_ip = None
+        fallback_whois = False
+        result = whois_lookup(host, fallback_ip, fallback_whois)
+
+        if isinstance(result, list):
+            org_gt_news = result[0]
+        else:
+            org_gt_news = result
+        
+        if org_gt_news is not None:
+            print(f"Registrant org for {host}: {org_gt_news}")
+        time.sleep(1)
+        
+        if org_gt_news is None or org_gt_news.strip() == '':
+            
+            print(f'Whois failed for host {host}! Using webscrape...')
+            result = whois_scraper(host)
+            
+            if isinstance(result, list):
+                org_gt_news = result[0]
+            else:
+                org_gt_news = result
+                
+            if org_gt_news is not None: 
+                print(f"Registrant org found for host {host} using webscrape: {org_gt_news}")
+            time.sleep(1)
+            
+        if org_gt_news is None or org_gt_news.strip() == '':
+            print(f'Whois failed for host {host}! Trying again...')
+            fallback_whois = True
+            result = whois_lookup(host, fallback_ip, fallback_whois)    
+            
+            if isinstance(result, list):
+                org_gt_news = result[0]
+            else:
+                org_gt_news = result
+                
+            if org_gt_news is not None:
+                print(f"Registrant org for {host}: {org_gt_news}")
+            time.sleep(1)
+            
+        if org_gt_news is None or org_gt_news.strip() == '':
+            fallback_ip = org_gt_news.loc[org_gt_news['Host'] == host, 'DST_IP'].values[0]
+            print(f"Whois failed! Using IP {fallback_ip}...")
+            result = whois_lookup(host, fallback_ip, fallback_whois)
+         
+            if isinstance(result, list):
+                org_gt_news = result[0]
+            else:
+                org_gt_news = result
+                
+            if org_gt_news is not None:
+                print(f"Registrant org found for host {host} using IP: {fallback_ip}: {org_gt_news}")
+            time.sleep(1)
+        
         gt_row_news.loc[gt_row_news['Host'] == host, 'Organization'] = org_gt_news
-    mainOrg_news = gt_row_news['Organization'].values[0]
+        gt_row_news.loc[gt_row_news['Host'] == host, 'Organization_tolower_stripped'] = org_gt_news.split()[0].lower()
+
 except Exception as e: 
-    print(f'{e}')
+    print(e)
 
 try: 
     for host in gt_row_sm['Host']:
-        org_gt_sm = extract_organization(whois.whois(host))
+        fallback_ip = None
+        fallback_whois = False
+        result = whois_lookup(host, fallback_ip, fallback_whois)
+
+        if isinstance(result, list):
+            org_gt_sm = result[0]
+        else:
+            org_gt_sm = result
+        
+        if org_gt_sm is not None:
+            print(f"Registrant org for {host}: {org_gt_sm}")
+        time.sleep(1)
+        
+        if org_gt_sm is None or org_gt_sm.strip() == '':
+            
+            print(f'Whois failed for host {host}! Using webscrape...')
+            result = whois_scraper(host)
+            
+            if isinstance(result, list):
+                org_gt_sm = result[0]
+            else:
+                org_gt_sm = result
+                
+            if org_gt_sm is not None: 
+                print(f"Registrant org found for host {host} using webscrape: {org_gt_sm}")
+            time.sleep(1)
+            
+        if org_gt_sm is None or org_gt_sm.strip() == '':
+            print(f'Whois failed for host {host}! Trying again...')
+            fallback_whois = True
+            result = whois_lookup(host, fallback_ip, fallback_whois)    
+            
+            if isinstance(result, list):
+                org_gt_sm = result[0]
+            else:
+                org_gt_sm = result
+                
+            if org_gt_sm is not None:
+                print(f"Registrant org for {host}: {org_gt_sm}")
+            time.sleep(1)
+            
+        if org_gt_sm is None or org_gt_sm.strip() == '':
+            fallback_ip = org_gt_sm.loc[org_gt_sm['Host'] == host, 'DST_IP'].values[0]
+            print(f"Whois failed! Using IP {fallback_ip}...")
+            result = whois_lookup(host, fallback_ip, fallback_whois)
+         
+            if isinstance(result, list):
+                org_gt_sm = result[0]
+            else:
+                org_gt_sm = result
+                
+            if org_gt_sm is not None:
+                print(f"Registrant org found for host {host} using IP: {fallback_ip}: {org_gt_news}")
+            time.sleep(1)
         gt_row_sm.loc[gt_row_sm['Host'] == host, 'Organization'] = org_gt_sm
-    mainOrg_sm = gt_row_sm['Organization'].values[0]
+        gt_row_sm.loc[gt_row_sm['Host'] == host, 'Organization_tolower_stripped'] = org_gt_sm.split()[0].lower()
 except Exception as e: 
-    print(f'{e}')
+    print(e)
     
 ################### ExternalHost WHOIS ############################
+
+widget = QWidget()
+layout = QVBoxLayout()
+
+progress_dialog = QProgressBar()
+progress_dialog.setFixedHeight(20) 
+progress_dialog.setFixedWidth(500)  
+title_label = QLabel("Making WHOIS Queries")
+
+matching_icon = QLabel()
+icon_path = "/opt/firefox/human_app_label/NativeApp/whois.png"
+pixmap = QPixmap(icon_path)
+# pixmap = pixmap.scaledToWidth(25)  
+pixmap = pixmap.scaledToHeight(60)  
+matching_icon.setPixmap(pixmap)
+
+
+layout.addWidget(title_label, alignment=Qt.AlignCenter)
+layout.addWidget(matching_icon, alignment=Qt.AlignCenter)
+layout.addWidget(progress_dialog, alignment=Qt.AlignCenter)
+widget.setLayout(layout)
+
+screen_rect = QDesktopWidget().screenGeometry()
+widget_width = 500
+widget_height = 30
+widget.setGeometry(
+    screen_rect.width() // 2 - widget_width // 2,
+    screen_rect.height() // 2 - widget_height // 2,
+    widget_width,
+    widget_height
+)
+
+widget.setWindowFlags(widget.windowFlags() | Qt.WindowStaysOnTopHint)
+
+widget.show()
+total_hosts = len(unique_hosts)
+current_host = 0
+
 for idx, host in enumerate(unique_hosts):
-    fallback_ip = None
     
-    organization = whois_lookup(host, fallback_ip)
-    print(f"Registrant org for {host}: {organization}")
+    current_host += 1
+    progress_percentage = int((current_host / total_hosts) * 100)
+    update_progress(progress_dialog, progress_percentage)
+    
+    fallback_ip = None
+    fallback_whois = False
+    result = whois_lookup(host, fallback_ip, fallback_whois)
+
+    if isinstance(result, list):
+        organization = result[0]
+    else:
+        organization = result
+    if organization is not None:
+        print(f"Registrant org for {host}: {organization}")
     time.sleep(1)
-    if organization is None:
+    
+    if organization is None or organization.strip() == '':
+        
+        print(f'Whois failed for host {host}! Using webscrape...')
+        result = whois_scraper(host)
+        
+        if isinstance(result, list):
+            organization = result[0]
+        else:
+            organization = result
+        if organization is not None:
+            print(f"Registrant org found for host {host} using webscrape: {organization}")
+        time.sleep(1)
+    
+    if organization is None or organization.strip() == '':
+        print(f'Whois failed for host {host}! Trying again...')
+        fallback_whois = True
+        result = whois_lookup(host, fallback_ip, fallback_whois)
+        
+        if isinstance(result, list):
+            organization = result[0]
+        else:
+            organization = result
+        if organization is not None:
+            print(f"Registrant org for {host}: {organization}")
+        time.sleep(1)
+        
+    if organization is None or organization.strip() == '':
         fallback_ip = externalhost_df.loc[externalhost_df['Host'] == host, 'DST_IP'].values[0]
         print(f"Whois failed! Using IP {fallback_ip}...")
-        organization = whois_lookup(host, fallback_ip)
-        print(f"Registrant org found for host {host} using IP: {fallback_ip}: {organization}")
+        result = whois_lookup(host, fallback_ip, fallback_whois)
+     
+        if isinstance(result, list):
+            organization = result[0]
+        else:
+            organization = result
+        if organization is not None:
+            print(f"Registrant org found for host {host} using IP: {fallback_ip}: {organization}")
         time.sleep(1)
-    externalhost_df.loc[externalhost_df['Host'] == host, 'Organization'] = organization
-
-############## Label Assignment (External) ##############################################
-try: 
-    for index, row in externalhost_df.iterrows():
-        if row['Organization'] == mainOrg_streaming:
-            externalhost_df.loc[index, 'Human Label'] = 'Video Streaming'
-            
-        else:
-            pass
-except Exception as e: 
-    print(f'{e}')
-
-try: 
-    for index, row in externalhost_df.iterrows():
-        if row['Organization'] == mainOrg_shopping:
-            externalhost_df.loc[index, 'Human Label'] = 'Shopping'
-        else:
-            pass
-except Exception as e: 
-    print(f'{e}')
-
-try: 
-    for index, row in externalhost_df.iterrows():
-        if row['Organization'] == mainOrg_email:
-            externalhost_df.loc[index, 'Human Label'] = 'Email'
-        else:
-            pass
-except Exception as e: 
-    print(f'{e}')
-
-try: 
-    for index, row in externalhost_df.iterrows():
-        if row['Organization'] == mainOrg_browsing:
-            externalhost_df.loc[index, 'Human Label'] = 'Information Browsing'
-        else:
-            pass
-except Exception as e: 
-    print(f'{e}')
-
-
-try: 
-    for index, row in externalhost_df.iterrows():
-        if row['Organization'] == mainOrg_news:
-            externalhost_df.loc[index, 'Human Label'] = 'News'
-        else:
-            pass
-except Exception as e: 
-    print(f'{e}')
     
-try: 
-    for index, row in externalhost_df.iterrows():
-        if row['Organization'] == mainOrg_sm:
-            externalhost_df.loc[index, 'Human Label'] = 'Social Media'
-        else:
-            pass
-except Exception as e: 
-    print(f'{e}')
-
+    
+    externalhost_df.loc[externalhost_df['Host'] == host, 'Organization'] = organization
+    if organization is not None:
+        externalhost_df.loc[externalhost_df['Host'] == host, 'Organization_tolower_stripped'] =  organization.split()[0].lower()
+        
+update_progress(progress_dialog, 100)
+widget.close()
+    
 ################## Org Assignment (gt) ######################################
 dfs_to_concat = []
 
-try: 
+try:
     for index, row in video_streaming_df.iterrows():
-        if row['Human Label'] == 'Video streaming':
-            video_streaming_df.loc[index, 'Organization'] = mainOrg_streaming
+        if row['Host'] in gt_row_streaming['Host'].values:
+            matching_organization = gt_row_streaming.loc[gt_row_streaming['Host'] == row['Host'], 'Organization'].values
+            video_streaming_df.loc[index, 'Organization'] = matching_organization[0] if len(matching_organization) > 0 else 'Unknown'
         else:
             pass
     dfs_to_concat.append(video_streaming_df)
 except Exception as e: 
-    print(f'{e}')
+    print(e)
     
 try: 
     for index, row in email_df.iterrows():
-        if row['Human Label'] == 'Email':
-            email_df.loc[index, 'Organization'] = mainOrg_email
+        if row['Host'] in gt_row_email['Host'].values:
+            matching_organization = gt_row_email.loc[gt_row_email['Host'] == row['Host'], 'Organization'].values
+            email_df.loc[index, 'Organization'] = matching_organization[0] if len(matching_organization) > 0 else 'Unknown'
+    
         else:
             pass
     dfs_to_concat.append(email_df)
+   
 except Exception as e: 
-    print(f'{e}')
+    print(e)
     
 try: 
     for index, row in shopping_df.iterrows():
-        if row['Human Label'] == 'Shopping':
-            shopping_df.loc[index, 'Organization'] = mainOrg_shopping
+        if row['Host'] in gt_row_shopping['Host'].values:
+            matching_organization = gt_row_shopping.loc[gt_row_shopping['Host'] == row['Host'], 'Organization'].values
+            shopping_df.loc[index, 'Organization'] = matching_organization[0] if len(matching_organization) > 0 else 'Unknown'
         else:
             pass
     dfs_to_concat.append(shopping_df)
 except Exception as e: 
-    print(f'{e}')
+    print(e)
 
 try: 
     for index, row in sm_df.iterrows():
-        if row['Human Label'] == 'Social media':
-            sm_df.loc[index, 'Organization'] = mainOrg_sm
+        if row['Host'] in gt_row_sm['Host'].values:
+            matching_organization = gt_row_sm.loc[gt_row_sm['Host'] == row['Host'], 'Organization'].values
+            sm_df.loc[index, 'Organization'] = matching_organization[0] if len(matching_organization) > 0 else 'Unknown'
         else:
             pass
     dfs_to_concat.append(sm_df)
 except Exception as e: 
-    print(f'{e}')
+    print(e)
 
 try: 
     for index, row in news_df.iterrows():
-        if row['Human Label'] == 'News':
-            news_df.loc[index, 'Organization'] = mainOrg_news
+        if row['Host'] in gt_row_news['Host'].values:
+            matching_organization = gt_row_news.loc[gt_row_news['Host'] == row['Host'], 'Organization'].values
+            news_df.loc[index, 'Organization'] = matching_organization[0] if len(matching_organization) > 0 else 'Unknown'
         else:
             pass
     dfs_to_concat.append(news_df)
 except Exception as e: 
-    print(f'{e}')
+    print(e)
     
 try: 
     for index, row in information_browsing_df.iterrows():
-        if row['Human Label'] == 'Information browsing':
-            information_browsing_df.loc[index, 'Organization'] = mainOrg_browsing
+        if row['Host'] in gt_row_browsing['Host'].values:
+            matching_organization = gt_row_browsing.loc[gt_row_browsing['Host'] == row['Host'], 'Organization'].values
+            information_browsing_df.loc[index, 'Organization'] = matching_organization[0] if len(matching_organization) > 0 else 'Unknown'
         else:
             pass
     dfs_to_concat.append(information_browsing_df)
 except Exception as e: 
-    print(f'{e}')
-###############################################################################
+    print(e)
+    
+############## Label Assignment (External) ####################################
+try: 
+    for index, row in externalhost_df.iterrows():
+        url = True
+        current_external_host = extract_domain_host(row['Origin URL'], url)
+        streaming_origin = gt_row_streaming['URL Parsed'].values
+        
+        if (row['Organization_tolower_stripped'] in gt_row_streaming['Organization_tolower_stripped'].values) and (row['URL Parsed'] in streaming_origin):
+            externalhost_df.loc[index, 'Human Label'] = 'Video streaming'
+        else:
+            pass
+except Exception as e: 
+    print(e)
 
-# result_df = pd.concat([video_streaming_df,shopping_df, externalhost_df], ignore_index=True)
+try: 
+    for index, row in externalhost_df.iterrows():
+        url = True
+        current_external_host = extract_domain_host(row['Origin URL'], url)
+        shopping_origin = gt_row_shopping['URL Parsed'].values
+
+        if (row['Organization_tolower_stripped'] in gt_row_shopping['Organization_tolower_stripped'].values) and (row['URL Parsed'] in shopping_origin):
+                externalhost_df.loc[index, 'Human Label'] = 'Shopping'
+        else:
+            pass
+except Exception as e: 
+    print(e)
+
+try: 
+    for index, row in externalhost_df.iterrows():
+        url = True
+        current_external_host = extract_domain_host(row['Origin URL'], url)
+        email_origin = gt_row_email['URL Parsed'].values
+
+        if (row['Organization_tolower_stripped'] in gt_row_email['Organization_tolower_stripped'].values) and (row['URL Parsed'] in email_origin):
+            externalhost_df.loc[index, 'Human Label'] = 'Email'
+        else:
+            pass
+except Exception as e: 
+    print(e)
+
+try: 
+    for index, row in externalhost_df.iterrows():
+        url = True
+        current_external_host = extract_domain_host(row['Origin URL'], url)
+        browsing_origin = gt_row_browsing['URL Parsed'].values
+
+        if (row['Organization_tolower_stripped'] in gt_row_browsing['Organization_tolower_stripped'].values) and (row['URL Parsed'] in browsing_origin):
+            externalhost_df.loc[index, 'Human Label'] = 'Information browsing'
+        else:
+            pass
+except Exception as e: 
+    print(e)
+
+
+try: 
+    for index, row in externalhost_df.iterrows():
+        url = True
+        current_external_host = extract_domain_host(row['Origin URL'], url)
+        news_origin = gt_row_news['URL Parsed'].values
+
+        if (row['Organization_tolower_stripped'] in gt_row_news['Organization_tolower_stripped'].values) and (row['URL Parsed'] in news_origin):
+            externalhost_df.loc[index, 'Human Label'] = 'News'
+        else:
+            pass
+except Exception as e: 
+    print(e)
+    
+try:
+    for index, row in externalhost_df.iterrows():
+        url = True
+        current_external_host = extract_domain_host(row['Origin URL'], url)
+        sm_origin = gt_row_sm['URL Parsed'].values
+        
+        if (row['Organization_tolower_stripped'] in gt_row_sm['Organization_tolower_stripped'].values) and (row['URL Parsed'] in sm_origin):
+            externalhost_df.loc[index, 'Human Label'] = 'Social media'
+        else:
+            pass
+except Exception as e: 
+    print(e)
+
+########################## End game ##########################################
+
 if dfs_to_concat: 
     result_df = pd.concat(dfs_to_concat, ignore_index = True)
     
 result_df2 = pd.concat([result_df, externalhost_df], ignore_index = True)
+columns_to_drop = ['Organization_tolower_stripped', 'URL Parsed']
+
+result_df2 = result_df2.drop(columns=columns_to_drop)
+
 # Save output
+# if debugging:
+#     result_df2.to_csv('/home/herman/human_app_label_testing/merged_conn.csv', index=False)
+
+# else:
 result_df2.to_csv(f'/opt/firefox/human_app_label/NativeApp/mergedOutput/merged_connections_{pid}_{timestamp}.csv', index=False)
