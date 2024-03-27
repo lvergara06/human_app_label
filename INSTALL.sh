@@ -1,7 +1,9 @@
 #!/bin/bash
 ###########################################################
 ## Date          Name               Description   
-## 09/22/23      Herman Ramey        Replaced git with curl and wget 
+## 09/22/23      Herman Ramey       Replaced git with curl and wget 
+## 03/27/24      Herman Ramey       Added commands for installing
+##                                  Python modules used in Merge.py 
 ###########################################################
 
 
@@ -122,20 +124,33 @@ if ! command -v python3 &> /dev/null; then
 fi
 
 # Install pip
-echo "Installing pip"
 install_package "python3-pip"
 
 echo
 
 # Install requests
-sudo pip install requests
-echo "requests installed"
+if ! command pip show requests &> /dev/null; then
+    echo "requests is not installed. Installing now..."
+    sudo pip install requests
+    echo "requests installed."
+else
+    echo "requests is already installed."
+fi
 
 echo
 
+# Install whois
+if ! command pip show python-whois &> /dev/null; then
+    echo "python-whois is not installed. Installing now..."
+    sudo pip install python-whois
+    echo "python-whois installed."
+else
+    echo "python-whois is already installed."
+fi
+
+echo
 
 # Install Node.js
-echo "Installing Node.js"
 install_package "curl"
 install_package "build-essential"
 install_package "libssl-dev"
@@ -155,7 +170,6 @@ fi
 echo
 
 # Install web-ext
-echo "Installing web-ext"
 install_package "npm"
 
 if ! command -v web-ext &> /dev/null; then
@@ -169,23 +183,16 @@ fi
 echo
 
 # Install netstat
-echo "Installing netstat"
 install_package "net-tools"
 
 echo
 
-# Install whois
-echo "Installing whois"
-install_package "whois"
-
-echo 
-
-echo "Installing BeautifulSoup"
+# Install BeautifulSoup
 install_package "python3-bs4"
 
 echo
 
-echo "Installing PyQt5"
+# Install PyQt5
 install_package "python3-pyqt5"
 
 echo
