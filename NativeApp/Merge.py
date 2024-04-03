@@ -10,6 +10,7 @@ import sys
 import whois
 import requests
 from bs4 import BeautifulSoup
+import whois
 import sys
 import json
 from urllib.parse import urlparse
@@ -425,7 +426,6 @@ def whois_scraper(domain):
     else:
         print(f"Failed to retrieve information. Status code: {response.status_code}")
         return None
-
     
 # This function extracts value from 'org' key 
 def extract_organization(result, fallback):
@@ -437,19 +437,29 @@ def extract_organization(result, fallback):
 
 # This function takes a host name or url and returns domain.tld 
 def extract_domain_host(hostname, is_url):
-    if url: 
+   
+    if is_url: 
         parsed_url = urlparse(hostname)
+        
         if parsed_url.netloc:
+            
             # Split the domain into parts
             domain_parts = parsed_url.netloc.split('.')
+            
             if len(domain_parts) >= 2:
+                if 'ext-' in domain_parts[-2]:
+                    domain_parts[-2] = domain_parts[-2].replace('ext-','')
+                   
                 return '.'.join(domain_parts[-2:]).strip()
-        return None
+        else:
+            print('parsed_url.netloc is returning None!')
+            return None
     else:
         parts = hostname.split('.')
         if len(parts) >= 2:
             return '.'.join(parts[-2:]).strip()
-        return None
+        else:
+            return None
     
 def print_df(df):
     if debugging:
@@ -488,9 +498,11 @@ pid = ""
 ## TODO: Make the timeWindow an option in Transport.py
 timeWindow = 120000
 
+
+
 if debugging:
-    connectionsFile = '/opt/firefox/human_app_label/NativeApp/work/connections.14935.20240206065613.csv'
-    flowFile = '/opt/firefox/human_app_label/pmacct/flows/flows.14945.csv'
+    connectionsFile = '/opt/firefox/human_app_label/NativeApp/work/connections.9103.20240327192348.csv'
+    flowFile = '/opt/firefox/human_app_label/pmacct/flows/flows.9113.csv'
 else:
     getOptions()
 
@@ -501,14 +513,14 @@ app = QApplication([])
 widget = QWidget()
 layout = QVBoxLayout()
 
-# Initialize progress bar
+# # Initialize progress bar
 progress_dialog = QProgressBar()
 progress_dialog.setFixedHeight(20)
 progress_dialog.setFixedWidth(500)
 title_label = QLabel("Matching URLs")
 
 matching_icon = QLabel()
-icon_path = "/opt/firefox/human_app_label/NativeApp/matching.png"
+icon_path = "/home/herman/human_app_label_testing/matching.png"
 pixmap = QPixmap(icon_path)
 # pixmap = pixmap.scaledToWidth(25)
 pixmap = pixmap.scaledToHeight(60)  
@@ -535,8 +547,8 @@ widget.setWindowFlags(widget.windowFlags() | Qt.WindowStaysOnTopHint)
 
 widget.show()
 
-## Open files
-## Save original stdout to print messages
+# Open files
+# Save original stdout to print messages
 # TODO: Implement using Dataframes, not file opener interface
 original_stdout = sys.stdout
 with open(connectionsFile, 'r') as source1,\
@@ -608,18 +620,18 @@ widget.close()
 df = pd.DataFrame(flows_data)
 df = df.apply(extract_values, axis=1)
 
+
 # Give names to columns in pmacct format
 df.columns = ['nDPI Label','SRC_IP','DST_IP','SRC_PORT','DST_PORT','PROTOCOL','TIMESTAMP_START','TIMESTAMP_END', 'TIMESTAMP_ARRIVAL', 'PACKETS','BYTES', 'Human Label', 'Host','Origin URL','Category']
 
 
 if debugging:
-    df = pd.read_csv('debugging.csv')
-    df.to_csv('debugging.csv', index = False)
-    
+    # df = pd.read_csv('/home/herman/human_app_label_testing/output/debugging.csv')
+    df.to_csv('/home/herman/human_app_label_testing/output/debugging.csv', index = False)
+
+
 # list of all unique human labels present in the output
 unique_labels = df['Human Label'].unique()
-
-
 
 # empty dictionary to hold multiple dataframes that map to human labels
 dfs = {}
@@ -707,7 +719,9 @@ try:
     url = True
     gt_row_shopping['URL Parsed'] = gt_row_shopping['Origin URL'].apply(extract_domain_host, is_url = url)
     gt_row_shopping = gt_row_shopping[gt_row_shopping['URL Parsed'].notna()]
-    org_gt_shopping = None      
+    org_gt_shopping = None 
+   
+         
 except Exception as e: 
     print(e)
 
@@ -790,9 +804,12 @@ try:
     
     ## TODO: Make sure program works with no external hosts
     unique_hosts = externalhost_df['Host'].unique()
-    if debugging:
-        print('Unique external hosts: ')
-        print(unique_hosts)
+    
+    
+    print('Unique hosts: ')
+    print(unique_hosts)
+    
+    
 except Exception as e: 
     print(e)
 
@@ -881,6 +898,7 @@ try:
             result = whois_scraper(host)
             
             if isinstance(result, list):
+            
                 org_gt_shopping = result[0]
                 
             else:
@@ -888,6 +906,8 @@ try:
                 
             if org_gt_shopping is not None:
                 print(f"Registrant org found for host {host} using webscrape: {org_gt_shopping}")
+                if org_gt_shopping == '':
+                    print('in if!!!')
             time.sleep(1)
             
         if org_gt_shopping is None or org_gt_shopping.strip() == '':
@@ -1053,7 +1073,7 @@ try:
         else:
             org_gt_news = result
         
-        if org_gt_news is not None:
+        if org_gt_news is not None :
             print(f"Registrant org for {host}: {org_gt_news}")
         time.sleep(1)
         
@@ -1177,7 +1197,7 @@ progress_dialog.setFixedWidth(500)
 title_label = QLabel("Making WHOIS Queries")
 
 matching_icon = QLabel()
-icon_path = "/opt/firefox/human_app_label/NativeApp/whois.png"
+icon_path = "/home/herman/human_app_label_testing/whois.png"
 pixmap = QPixmap(icon_path)
 # pixmap = pixmap.scaledToWidth(25)  
 pixmap = pixmap.scaledToHeight(60)  
@@ -1249,7 +1269,7 @@ for idx, host in enumerate(unique_hosts):
             print(f"Registrant org for {host}: {organization}")
         time.sleep(1)
         
-    if organization is None or organization.strip() == '':
+    if organization is None or organization.strip == '':
         fallback_ip = externalhost_df.loc[externalhost_df['Host'] == host, 'DST_IP'].values[0]
         print(f"Whois failed! Using IP {fallback_ip}...")
         result = whois_lookup(host, fallback_ip, fallback_whois)
@@ -1266,6 +1286,7 @@ for idx, host in enumerate(unique_hosts):
     externalhost_df.loc[externalhost_df['Host'] == host, 'Organization'] = organization
     if organization is not None:
         externalhost_df.loc[externalhost_df['Host'] == host, 'Organization_tolower_stripped'] =  organization.split()[0].lower()
+        
         
 update_progress(progress_dialog, 100)
 widget.close()
@@ -1342,82 +1363,154 @@ except Exception as e:
     print(e)
     
 ############## Label Assignment (External) ####################################
-try: 
+try:
     for index, row in externalhost_df.iterrows():
         url = True
-        current_external_host = extract_domain_host(row['Origin URL'], url)
-        streaming_origin = gt_row_streaming['URL Parsed'].values
+        current_external_origin = row['URL Parsed']
+        current_external_org = row['Organization_tolower_stripped']
         
-        if (row['Organization_tolower_stripped'] in gt_row_streaming['Organization_tolower_stripped'].values) and (row['URL Parsed'] in streaming_origin):
-            externalhost_df.loc[index, 'Human Label'] = 'Video streaming'
-        else:
-            pass
+        
+        current_gt_origin = None
+        current_gt_org = None
+    
+        for gt_index, gt_row in gt_row_streaming.iterrows():
+            if current_external_org == gt_row['Organization_tolower_stripped']\
+                and current_external_origin == gt_row['URL Parsed']:
+                current_gt_origin = gt_row['URL Parsed']
+                current_gt_org = gt_row['Organization_tolower_stripped']
+                break
+        if current_gt_origin and current_gt_org: 
+           if (current_external_org == current_gt_org) and \
+               (current_external_origin == current_gt_origin):
+               externalhost_df.loc[index, 'Human Label'] = 'Video streaming'
+           else:
+               pass
+       
 except Exception as e: 
     print(e)
 
 try: 
     for index, row in externalhost_df.iterrows():
         url = True
-        current_external_host = extract_domain_host(row['Origin URL'], url)
-        shopping_origin = gt_row_shopping['URL Parsed'].values
+        current_external_origin = row['URL Parsed']
+        current_external_org = row['Organization_tolower_stripped']
+        
+        
+        current_gt_origin = None
+        current_gt_org = None
+        for gt_index, gt_row in gt_row_shopping.iterrows():
+            if current_external_org == gt_row['Organization_tolower_stripped']\
+                and current_external_origin == gt_row['URL Parsed']:
+                current_gt_origin = gt_row['URL Parsed']
+                current_gt_org = gt_row['Organization_tolower_stripped']
+                break
+        if current_gt_origin and current_gt_org: 
+            if (current_external_org == current_gt_org) and \
+                (current_external_origin == current_gt_origin):
+                    externalhost_df.loc[index, 'Human Label'] = 'Shopping'
+            else:
+                pass
+except Exception as e: 
+    print(e)
 
-        if (row['Organization_tolower_stripped'] in gt_row_shopping['Organization_tolower_stripped'].values) and (row['URL Parsed'] in shopping_origin):
-                externalhost_df.loc[index, 'Human Label'] = 'Shopping'
-        else:
-            pass
+try: 
+   
+    for index, row in externalhost_df.iterrows():
+        url = True
+        current_external_origin = row['URL Parsed']
+        current_external_org = row['Organization_tolower_stripped']
+        
+        
+        current_gt_origin = None
+        current_gt_org = None
+        
+        for gt_index, gt_row in gt_row_email.iterrows():
+            if current_external_org == gt_row['Organization_tolower_stripped']\
+                and current_external_origin == gt_row['URL Parsed']:
+                current_gt_origin = gt_row['URL Parsed']
+                current_gt_org = gt_row['Organization_tolower_stripped']
+                break
+        if current_gt_origin and current_gt_org: 
+            if (current_external_org == current_gt_org) and \
+                (current_external_origin == current_gt_origin):
+                externalhost_df.loc[index, 'Human Label'] = 'Email'
+   
+            else:
+                pass
 except Exception as e: 
     print(e)
 
 try: 
     for index, row in externalhost_df.iterrows():
         url = True
-        current_external_host = extract_domain_host(row['Origin URL'], url)
-        email_origin = gt_row_email['URL Parsed'].values
+        current_external_origin = row['URL Parsed']
+        current_external_org = row['Organization_tolower_stripped']
+        
+        
+        current_gt_origin = None
+        current_gt_org = None
 
-        if (row['Organization_tolower_stripped'] in gt_row_email['Organization_tolower_stripped'].values) and (row['URL Parsed'] in email_origin):
-            externalhost_df.loc[index, 'Human Label'] = 'Email'
-        else:
-            pass
+        for gt_index, gt_row in gt_row_browsing.iterrows():
+            if current_external_org == gt_row['Organization_tolower_stripped']\
+                and current_external_origin == gt_row['URL Parsed']:
+                current_gt_origin = gt_row['URL Parsed']
+                current_gt_org = gt_row['Organization_tolower_stripped']
+                break
+        if current_gt_origin and current_gt_org: 
+            if (current_external_org == current_gt_org) and \
+                (current_external_origin == current_gt_origin):
+                    externalhost_df.loc[index, 'Human Label'] = 'Information browsing'
+            else:
+                pass
 except Exception as e: 
     print(e)
+
 
 try: 
     for index, row in externalhost_df.iterrows():
         url = True
-        current_external_host = extract_domain_host(row['Origin URL'], url)
-        browsing_origin = gt_row_browsing['URL Parsed'].values
-
-        if (row['Organization_tolower_stripped'] in gt_row_browsing['Organization_tolower_stripped'].values) and (row['URL Parsed'] in browsing_origin):
-            externalhost_df.loc[index, 'Human Label'] = 'Information browsing'
-        else:
-            pass
-except Exception as e: 
-    print(e)
-
-
-try: 
-    for index, row in externalhost_df.iterrows():
-        url = True
-        current_external_host = extract_domain_host(row['Origin URL'], url)
-        news_origin = gt_row_news['URL Parsed'].values
-
-        if (row['Organization_tolower_stripped'] in gt_row_news['Organization_tolower_stripped'].values) and (row['URL Parsed'] in news_origin):
-            externalhost_df.loc[index, 'Human Label'] = 'News'
-        else:
-            pass
+        current_external_origin = row['URL Parsed']
+        current_external_org = row['Organization_tolower_stripped']
+       
+       
+        current_gt_origin = None
+        current_gt_org = None
+        for gt_index, gt_row in gt_row_news.iterrows():
+            if current_external_org == gt_row['Organization_tolower_stripped']\
+                and current_external_origin == gt_row['URL Parsed']:
+                current_gt_origin = gt_row['URL Parsed']
+                current_gt_org = gt_row['Organization_tolower_stripped']
+                break
+        if current_gt_origin and current_gt_org: 
+            if (current_external_org == current_gt_org) and \
+                (current_external_origin == current_gt_origin):
+                    externalhost_df.loc[index, 'Human Label'] = 'News'
+            else:
+                pass
 except Exception as e: 
     print(e)
     
 try:
     for index, row in externalhost_df.iterrows():
         url = True
-        current_external_host = extract_domain_host(row['Origin URL'], url)
-        sm_origin = gt_row_sm['URL Parsed'].values
+        current_external_origin = row['URL Parsed']
+        current_external_org = row['Organization_tolower_stripped']
         
-        if (row['Organization_tolower_stripped'] in gt_row_sm['Organization_tolower_stripped'].values) and (row['URL Parsed'] in sm_origin):
-            externalhost_df.loc[index, 'Human Label'] = 'Social media'
-        else:
-            pass
+        
+        current_gt_origin = None
+        current_gt_org = None
+        for gt_index, gt_row in gt_row_sm.iterrows():
+            if current_external_org == gt_row['Organization_tolower_stripped']\
+                and current_external_origin == gt_row['URL Parsed']:
+                current_gt_origin = gt_row['URL Parsed']
+                current_gt_org = gt_row['Organization_tolower_stripped']
+                break
+        if current_gt_origin and current_gt_org: 
+            if (current_external_org == current_gt_org) and \
+                (current_external_origin == current_gt_origin):
+                    externalhost_df.loc[index, 'Human Label'] = 'Social media'
+            else:
+                pass
 except Exception as e: 
     print(e)
 
@@ -1426,14 +1519,15 @@ except Exception as e:
 if dfs_to_concat: 
     result_df = pd.concat(dfs_to_concat, ignore_index = True)
     
+ 
 result_df2 = pd.concat([result_df, externalhost_df], ignore_index = True)
 columns_to_drop = ['Organization_tolower_stripped', 'URL Parsed']
 
 result_df2 = result_df2.drop(columns=columns_to_drop)
 
 # Save output
-# if debugging:
-#     result_df2.to_csv('/home/herman/human_app_label_testing/merged_conn.csv', index=False)
+if debugging:
+    result_df2.to_csv('/home/herman/human_app_label_testing/merged_conn_666.csv', index=False) 
 
-# else:
-result_df2.to_csv(f'/opt/firefox/human_app_label/NativeApp/mergedOutput/merged_connections_{pid}_{timestamp}.csv', index=False)
+else:
+    result_df2.to_csv(f'/opt/firefox/human_app_label/NativeApp/mergedOutput/merged_connections_{pid}_{timestamp}.csv', index=False)

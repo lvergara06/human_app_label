@@ -1,9 +1,7 @@
 #!/bin/bash
 ###########################################################
 ## Date          Name               Description   
-## 09/22/23      Herman Ramey       Replaced git with curl and wget 
-## 03/27/24      Herman Ramey       Added commands for installing
-##                                  Python modules used in Merge.py 
+## 09/22/23      Herman Ramey        Replaced git with curl and wget 
 ###########################################################
 
 
@@ -124,52 +122,30 @@ if ! command -v python3 &> /dev/null; then
 fi
 
 # Install pip
+echo "Installing pip"
 install_package "python3-pip"
 
 echo
 
 # Install requests
-if ! command pip show requests &> /dev/null; then
-    echo "requests is not installed. Installing now..."
-    sudo pip install requests
-    echo "requests installed."
-else
-    echo "requests is already installed."
-fi
+sudo pip install requests
+echo "requests installed"
 
 echo
 
-# Install whois
-if ! command pip show python-whois &> /dev/null; then
-    echo "python-whois is not installed. Installing now..."
-    sudo pip install python-whois
-    echo "python-whois installed."
-else
-    echo "python-whois is already installed."
-fi
-
-# Install pandas
-if ! command pip show pandas &> /dev/null; then
-    echo "pandas is not installed. Installing now..."
-    sudo pip install pandas
-    echo "pandas installed."
-else
-    echo "pandas is already installed."
-fi
-
-echo
 
 # Install Node.js
+echo "Installing Node.js"
 install_package "curl"
 install_package "build-essential"
 install_package "libssl-dev"
 
 if ! command -v node &> /dev/null; then
     echo "Node.js is not installed. Installing now..."
-    # curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
-    # export NVM_DIR="$HOME/.nvm"
-    # [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
-    # [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
+    curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.1/install.sh | bash
+    export NVM_DIR="$HOME/.nvm"
+    [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+    [ -s "$NVM_DIR/bash_completion" ] && \. "$NVM_DIR/bash_completion"
     nvm install node
     echo "Node.js installed."
 else
@@ -179,6 +155,7 @@ fi
 echo
 
 # Install web-ext
+echo "Installing web-ext"
 install_package "npm"
 
 if ! command -v web-ext &> /dev/null; then
@@ -192,16 +169,23 @@ fi
 echo
 
 # Install netstat
+echo "Installing netstat"
 install_package "net-tools"
 
 echo
 
-# Install BeautifulSoup
+# Install whois
+echo "Installing whois"
+install_package "whois"
+
+echo 
+
+echo "Installing BeautifulSoup"
 install_package "python3-bs4"
 
 echo
 
-# Install PyQt5
+echo "Installing PyQt5"
 install_package "python3-pyqt5"
 
 echo
