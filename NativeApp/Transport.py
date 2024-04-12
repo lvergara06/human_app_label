@@ -11,6 +11,12 @@
 # 08/02/2023   Luis Vergara      Rolling back the snapshot idea. It takes
 #                                a lof of power and we are going to match
 #                                pmacctd based on dest ip and port.
+# 03/12/2024   Herman Ramey      No longer using netstat snapshots. 
+# 04/11/2024   Herman Ramey      Inserting header values for connections file
+#                                and changing order of output data
+# 04/09/2024   Herman Ramey      Host-level information (domain.tld) to identify
+#                                in connections file is not descriptive enough;
+#                                Extracting https url now as URL  
 ######################################################################
 import sys
 import json
@@ -94,6 +100,8 @@ try:
         elif filetype == "csv":
             with open(filename, 'a' if answ else 'w', newline='') as filetypeF:
                 writer = csv.writer(filetypeF)
+                if not answ:
+                    writer.writerow(connection.keys())
                 writer.writerow(connection.values())
 
     # Retrieves options from config file or uses defaults 
@@ -267,7 +275,7 @@ try:
         originUrl = receivedMessage['dataIn']['originUrl']
         destinationIp = receivedMessage['dataIn']['destinationIp']
         destinationPort = receivedMessage['dataIn']['destinationPort']
-        host = receivedMessage['dataIn']['host']
+        host = receivedMessage['dataIn']['url']
         errorMsg = ""
         output_file_json = f"{outDir}/connections.json"
         output_file_csv = f"{outDir}/connections.csv"
@@ -279,14 +287,14 @@ try:
         utc_time = datetime.datetime.utcfromtimestamp(epochTime/1000.0)
         utcRead = utc_time.strftime('%Y-%m-%d %H:%M:%S')
         connection = {}
-        connection['destinationIp'] = destinationIp
-        connection['destinationPort'] = destinationPort
+        connection['Timestamp'] = utcRead
+        connection['URL'] = host
+        connection['originURL'] = originUrl
+        connection['serverIP'] = destinationIp
+        connection['serverPort'] = destinationPort
         connection['pid'] = FirefoxPID
-        connection['epochTime'] = epochTime
-        connection['userSelection'] = userSelection
-        connection['originUrl'] = originUrl
-        connection['date'] = utcRead
-        connection['host'] = host
+        connection['Timestamp (Unix epoch)'] = epochTime
+        connection['Human Label'] = userSelection
         responseMessage['dataOut'].append(connection)
         add_connection(connection, output_file_json, "json") 
         add_connection(connection, output_file_csv, "csv")

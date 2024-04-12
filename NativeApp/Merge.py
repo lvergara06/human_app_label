@@ -1,32 +1,22 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import sys
 import pytz
 import pandas as pd
 import time
 from PyQt5.QtWidgets import QApplication, QProgressBar, QProgressDialog, QWidget, QVBoxLayout, QSizePolicy, QLabel, QDesktopWidget
 from PyQt5.QtCore import Qt, QCoreApplication
-from PyQt5.QtGui import QPixmap
+from PyQt5.QtGui import QIcon, QPixmap
+import sys 
 import whois
 import requests
 from bs4 import BeautifulSoup
+import whois
+import sys
 import json
 from urllib.parse import urlparse
+from ProgressBar import ProgressBar 
 debugging = False
 
-# Helper function to 'clean' up the data and extract all relevant data
-# from Dataframe
-def extract_values(row):
-    col0_values = row[0].split(',')
-    return pd.Series([col0_values[0], col0_values[1], col0_values[2], \
-                      col0_values[3], col0_values[4], col0_values[5], \
-                          col0_values[6],col0_values[7],col0_values[8], \
-                              col0_values[9], col0_values[10], row[1], row[2],\
-                                  row[3], row[4]])
-
-# This function updates the progress bar
-def update_progress(progress_dialog, value):
-    progress_dialog.setValue(value)
-    QApplication.processEvents()
     
 # This function does WHOIS query on host and uses IP in the case that 
 # org
@@ -97,12 +87,11 @@ def extract_organization(result, fallback):
 
 # This function takes a host name or url and returns domain.tld 
 def extract_domain_host(hostname, is_url):
-   
+    
     if is_url: 
         parsed_url = urlparse(hostname)
         
         if parsed_url.netloc:
-            
             # Split the domain into parts
             domain_parts = parsed_url.netloc.split('.')
             
@@ -112,7 +101,7 @@ def extract_domain_host(hostname, is_url):
                    
                 return '.'.join(domain_parts[-2:]).strip()
         else:
-            print('parsed_url.netloc is returning None!')
+            print(f'parsed_url.netloc is returning None for {hostname}!')
             return None
     else:
         parts = hostname.split('.')
@@ -120,6 +109,12 @@ def extract_domain_host(hostname, is_url):
             return '.'.join(parts[-2:]).strip()
         else:
             return None
+        
+def check_duplicate(new_flows, prev_flows):
+    if new_flows in prev_flows:
+        return True
+    else:
+        return False
     
 def print_df(df):
     if debugging:
@@ -156,142 +151,111 @@ pid = ""
 
 ## Max difference between connection epoch and pcmacct epoch
 ## TODO: Make the timeWindow an option in Transport.py
-timeWindow = 120000
+timeWindow = 30000
 
 categories_file = '/opt/firefox/human_app_label/NativeApp/data.json'
 
 if debugging:
-    connectionsFile = '/opt/firefox/human_app_label/NativeApp/work/connections.13332.20240331192916 (copy).csv'
-    flowFile = '/opt/firefox/human_app_label/pmacct/flows/flows.13342 (copy).csv'
+    connectionsFile = '/opt/firefox/human_app_label/NativeApp/work/connections.23952.20240410035036.csv'
+    flowFile = '/opt/firefox/human_app_label/pmacct/flows/flows.23962.csv'
 else:
     getOptions()
 
-flows_data = []  # List to store data for DataFrame
+merged_flows = []
+prev_flows = []
+
+
+url_df = pd.read_csv(connectionsFile)
+flows_df = pd.read_csv(flowFile)
+
+
 data = {} # Dict to store nDPI label --> category mappings
 
 with open(categories_file, 'r') as file:
     data = json.load(file)
 
-# Initialize QApplication
-app = QApplication([])
-widget = QWidget()
-layout = QVBoxLayout()
+progress_bar = ProgressBar()
+progress_bar.show('url')
 
-# Initialize progress bar
-progress_dialog = QProgressBar()
-progress_dialog.setFixedHeight(20)
-progress_dialog.setFixedWidth(500)
-title_label = QLabel("Matching URLs")
+total_connections= url_df.shape[0]
+current_connection = 0
+dup_flow = None
 
-matching_icon = QLabel()
-icon_path = "/home/herman/human_app_label_testing/matching.png"
-pixmap = QPixmap(icon_path)
-# pixmap = pixmap.scaledToWidth(25)
-pixmap = pixmap.scaledToHeight(60)  
-matching_icon.setPixmap(pixmap)
+for url_index, url_row in url_df.iterrows(): 
+    current_connection += 1
+    progress_percentage = int((current_connection / total_connections) * 100)
+    progress_bar.update_progress(progress_percentage)
+    server_IP = url_row['serverIP']
+    server_port = url_row['serverPort']
+    user_sel = url_row['Human Label']
+    origin_url = url_row['originURL']
+    connection_epoch = url_row['Timestamp (Unix epoch)']
+    remote_host = url_row['URL']
+    
 
-
-layout.addWidget(title_label, alignment=Qt.AlignCenter)
-layout.addWidget(matching_icon, alignment=Qt.AlignCenter)
-layout.addWidget(progress_dialog, alignment=Qt.AlignCenter)
-widget.setLayout(layout)
-
-# Get the screen geometry to position the progress bar in the center
-screen_rect = QDesktopWidget().screenGeometry()
-widget_width = 500
-widget_height = 30
-widget.setGeometry(
-    screen_rect.width() // 2 - widget_width // 2,
-    screen_rect.height() // 2 - widget_height // 2,
-    widget_width,
-    widget_height
-)
-
-widget.setWindowFlags(widget.windowFlags() | Qt.WindowStaysOnTopHint)
-
-widget.show()
-
-# Open files
-# Save original stdout to print messages
-# TODO: Implement using Dataframes, not file opener interface
-original_stdout = sys.stdout
-with open(connectionsFile, 'r') as source1,\
-      open(flowFile, 'r') as source2:
-    connections = source1.readlines()
-    total_connections = len(connections)
-    current_connection = 0
-    for connection in connections:
-        current_connection += 1
-        progress_percentage = int((current_connection / total_connections) * 100)
-        update_progress(progress_dialog, progress_percentage)
-        splitConnection = connection.split(',')
-        connectionDestinationIp = splitConnection[0]
-        connectionDestinationPort = splitConnection[1]
-        connectionUserSelection = splitConnection[4]
-        connectionOriginURL = splitConnection[5]
-        connectionEpoch = splitConnection[3]
-        connectionHost = splitConnection[7]
-        source2.seek(0)
-        flows = source2.readlines()
-      
-        match_found = False
+    for flow_index, flow_row in flows_df.iterrows():
+        flow_class = flow_row['CLASS']
+        flow_src_ip = flow_row['SRC_IP']
+        flow_dst_ip = flow_row['DST_IP']
+        flow_src_port = flow_row['SRC_PORT']
+        flow_dst_port = flow_row['DST_PORT']
+        flow_start_time = flow_row['TIMESTAMP_START']
+        flow_category = data.get(flow_class, "Unknown")  
         
-        for flow in flows:
-            splitFlow = flow.split(',')
-            flowClass = splitFlow[0]
-            flowSourceIp = splitFlow[1]
-            flowDestinationIp = splitFlow[2]
-            flowSourcePort = splitFlow[3]
-            flowDestinationPort = splitFlow[4]
-            flowStartTime = splitFlow[6]
-            flowCategory = data.get(flowClass, "Unknown")  
-        
-            if flowStartTime == "TIMESTAMP_START":
-                continue
-            # This is an adjustment to get mountain to UTC timestamp from pmacct
-            # If your pmacct timestamps are in UTC then you will have to remove this.
-            try:
-                # Convert the local time string to a datetime object
-                local_time = datetime.strptime(flowStartTime, "%Y-%m-%d %H:%M:%S.%f")
-    
-                # Get the local timezone
-                # TODO: MAKE THIS NOT NEEDED
-                local_tz = pytz.timezone('America/Denver')
-    
-                # Localize the datetime object to the local timezone
-                localized_time = local_tz.localize(local_time, is_dst=None)
-    
-                # Convert the localized datetime to UTC
-                utc_time = localized_time.astimezone(pytz.utc)
-    
-                # Calculate the flowEpoch timestamp
-                flowEpoch = int((utc_time - datetime(1970, 1, 1, tzinfo=pytz.utc)).total_seconds() * 1000)
-            except Exception as e:
-                print(f"Error: {e}")
-                
-            if ( (connectionDestinationIp == flowDestinationIp and connectionDestinationPort == flowDestinationPort and abs(int(connectionEpoch) - flowEpoch) <= timeWindow) or (connectionDestinationIp == flowSourceIp and connectionDestinationPort == flowSourcePort and abs(int(connectionEpoch) - flowEpoch) <= timeWindow) ):
-                flows_data.append([flow, connectionUserSelection, connectionHost, connectionOriginURL, flowCategory])
-                match_found = True
-                break  # Break from the inner loop when a match is found
-
-        # Check the flag before moving to the next item in flows file
-        if match_found:
+        if flow_start_time == "TIMESTAMP_START":
             continue
-    update_progress(progress_dialog, 100)
+        # This is an adjustment to get mountain to UTC timestamp from pmacct
+        # If your pmacct timestamps are in UTC then you will have to remove this.
+        try:
+            # Convert the local time string to a datetime object
+            local_time = datetime.strptime(flow_start_time, "%Y-%m-%d %H:%M:%S.%f")
 
-widget.close()
+            # Get the local timezone
+            # TODO: MAKE THIS NOT NEEDED
+            local_tz = pytz.timezone('America/Denver')
 
-df = pd.DataFrame(flows_data)
-df = df.apply(extract_values, axis=1)
+            # Localize the datetime object to the local timezone
+            localized_time = local_tz.localize(local_time, is_dst=None)
 
+            # Convert the localized datetime to UTC
+            utc_time = localized_time.astimezone(pytz.utc)
 
-# Give names to columns in pmacct format
-df.columns = ['nDPI Label','SRC_IP','DST_IP','SRC_PORT','DST_PORT','PROTOCOL','TIMESTAMP_START','TIMESTAMP_END', 'TIMESTAMP_ARRIVAL', 'PACKETS','BYTES', 'Human Label', 'Host','Origin URL','Category']
+            # Calculate the flowEpoch timestamp
+            flowEpoch = int((utc_time - datetime(1970, 1, 1, tzinfo=pytz.utc)).total_seconds() * 1000)
+        except Exception as e:
+            print(f"Error: {e}")
+            
+            
+        
+        if ( (server_IP == flow_dst_ip and \
+              server_port == flow_dst_port and\
+                  abs(int(connection_epoch) - flowEpoch) <= timeWindow) or\
+            (server_IP == flow_src_ip and \
+              server_port == flow_src_port and \
+                  abs(int(connection_epoch) - flowEpoch) <= timeWindow) ):
+            dup_flow = check_duplicate(list(flow_row.values), prev_flows)
+            if dup_flow:
+                continue # ignore this entry in the flows file, evaluate next flow
+            else:
+                merged_flows.append(list(flow_row.values) + [user_sel,remote_host,origin_url,flow_category] )
+                prev_flows.append(list(flow_row.values))
+                break  # Break from the inner looop
+    
+progress_bar.update_progress(100)
 
+progress_bar.close()
 
-if debugging:
-    # df = pd.read_csv('/home/herman/human_app_label_testing/output/debugging.csv')
+df = pd.DataFrame(merged_flows)
+
+df.columns = ['nDPI Label','SRC_IP','DST_IP','SRC_PORT','DST_PORT','PROTOCOL',\
+                        'TIMESTAMP_START','TIMESTAMP_END', 'TIMESTAMP_ARRIVAL', \
+                            'PACKETS','BYTES', 'Human Label', 'Host','Origin URL',\
+                                'Category']
+
+if debugging: 
     df.to_csv('/home/herman/human_app_label_testing/output/debugging.csv', index = False)
+    # df = pd.read_csv('/home/herman/human_app_label_testing/output/debugging.csv')
+
 
 
 # list of all unique human labels present in the output
@@ -356,15 +320,13 @@ except Exception as e:
 
 ################################ Formatting ###################################
 try:  
-    url = False
+    url = True
     video_streaming_df['Host'] = video_streaming_df['Host'].apply(extract_domain_host, is_url = url)
     video_streaming_df = video_streaming_df[video_streaming_df['Host'].notna()] 
     video_streaming_df['Organization'] = None 
     video_streaming_df['Organization_tolower_stripped'] = None
     gt_row_streaming = video_streaming_df.drop_duplicates(subset='Host')
-    gt_row_streaming['Host'] = gt_row_streaming['Host'].apply(extract_domain_host, is_url = url)
     gt_row_streaming = gt_row_streaming[gt_row_streaming['Host'].notna()] 
-    url = True
     gt_row_streaming['URL Parsed'] = gt_row_streaming['Origin URL'].apply(extract_domain_host, is_url = url)
     gt_row_streaming = gt_row_streaming[gt_row_streaming['URL Parsed'].notna()]
     org_gt_streaming = None
@@ -372,15 +334,13 @@ except Exception as e:
     print(e)
     
 try:   
-    url = False     
+    url = True     
     shopping_df['Host'] = shopping_df['Host'].apply(extract_domain_host, is_url = url)
     shopping_df = shopping_df[shopping_df['Host'].notna()]  
     shopping_df['Organization'] = None
     shopping_df['Organization_tolower_stripped'] = None
     gt_row_shopping = shopping_df.drop_duplicates(subset='Host')
-    gt_row_shopping['Host'] = gt_row_shopping['Host'].apply(extract_domain_host, is_url = url)
     gt_row_shopping = gt_row_shopping[gt_row_shopping['Host'].notna()] 
-    url = True
     gt_row_shopping['URL Parsed'] = gt_row_shopping['Origin URL'].apply(extract_domain_host, is_url = url)
     gt_row_shopping = gt_row_shopping[gt_row_shopping['URL Parsed'].notna()]
     org_gt_shopping = None 
@@ -390,15 +350,13 @@ except Exception as e:
     print(e)
 
 try:    
-    url = False    
+    url = True    
     email_df['Host'] = email_df['Host'].apply(extract_domain_host, is_url = url)
     email_df = email_df[email_df['Host'].notna()] 
     email_df['Organization'] = None
     email_df['Organization_tolower_stripped'] = None
     gt_row_email = email_df.drop_duplicates(subset='Host')
-    gt_row_email['Host'] = gt_row_email['Host'].apply(extract_domain_host, is_url = url)
     gt_row_email = gt_row_email[gt_row_email['Host'].notna()]
-    url = True
     gt_row_email['URL Parsed'] = gt_row_email['Origin URL'].apply(extract_domain_host,is_url = url)
     gt_row_email = gt_row_email[gt_row_email['URL Parsed'].notna()]
     org_gt_email = None
@@ -407,15 +365,13 @@ except Exception as e:
     print(e)
     
 try:
-    url = False      
+    url = True      
     information_browsing_df['Host'] = information_browsing_df['Host'].apply(extract_domain_host, is_url = url)
     information_browsing_df = information_browsing_df[information_browsing_df['Host'].notna()] 
     information_browsing_df['Organization'] = None
     information_browsing_df['Organization_tolower_stripped'] = None
     gt_row_browsing = information_browsing_df.drop_duplicates(subset='Host')
-    gt_row_browsing['Host'] = gt_row_browsing['Host'].apply(extract_domain_host, is_url = url)
     gt_row_browsing = gt_row_browsing[gt_row_browsing['Host'].notna()] 
-    url = True
     gt_row_browsing['URL Parsed'] = gt_row_browsing['Origin URL'].apply(extract_domain_host, is_url = url)
     gt_row_browsing = gt_row_browsing[gt_row_browsing['URL Parsed'].notna()]
     org_gt_browsing = None 
@@ -424,15 +380,13 @@ except Exception as e:
     print(e)
     
 try:   
-    url = False     
+    url = True     
     news_df['Host'] = news_df['Host'].apply(extract_domain_host, is_url = url)
     news_df = news_df[news_df['Host'].notna()] 
     news_df['Organization'] = None
     news_df['Organization_tolower_stripped'] = None
     gt_row_news = news_df.drop_duplicates(subset='Host')
-    gt_row_news['Host'] = gt_row_news['Host'].apply(extract_domain_host, is_url = url)
     gt_row_news = gt_row_news[gt_row_news['Host'].notna()]
-    url = True
     gt_row_news['URL Parsed'] = gt_row_news['Origin URL'].apply(extract_domain_host, is_url = url)
     gt_row_news = gt_row_news[gt_row_news['URL Parsed'].notna()]
     org_gt_news = None 
@@ -440,16 +394,14 @@ except Exception as e:
     print(e)
     
 try: 
-    url = False       
+    url = True    
     sm_df['Host'] = sm_df['Host'].apply(extract_domain_host, is_url = url)
     sm_df = sm_df[sm_df['Host'].notna()] 
     sm_df['Organization'] = None
     sm_df['Organization_tolower_stripped'] = None
     sm_df['URL Parsed'] = None
     gt_row_sm = sm_df.drop_duplicates(subset='Host')
-    gt_row_sm['Host'] = gt_row_sm['Host'].apply(extract_domain_host, is_url = url)
     gt_row_sm = gt_row_sm[gt_row_sm['Host'].notna()]
-    url = True
     gt_row_sm['URL Parsed'] = gt_row_sm['Origin URL'].apply(extract_domain_host, is_url = url)
     gt_row_sm = gt_row_sm[gt_row_sm['URL Parsed'].notna()]
     org_gt_sm = None 
@@ -457,10 +409,9 @@ except Exception as e:
     print(e)
     
 try:        
-    url = False
+    url = True
     externalhost_df['Host'] = externalhost_df['Host'].apply(extract_domain_host, is_url = url)
     externalhost_df = externalhost_df[externalhost_df['Host'].notna()] 
-    url = True
     externalhost_df['URL Parsed'] = externalhost_df['Origin URL'].apply(extract_domain_host, is_url = url)
     externalhost_df = externalhost_df[externalhost_df['URL Parsed'].notna()]
     externalhost_df['Organization'] = None
@@ -468,12 +419,14 @@ try:
     
     ## TODO: Make sure program works with no external hosts
     unique_hosts = externalhost_df['Host'].unique()
+    
 except Exception as e: 
     print(e)
 
 ################################ WHOIS #######################################
-try: 
 
+
+try: 
     for host in gt_row_streaming['Host']:
         fallback_ip = None
         fallback_whois = False
@@ -565,7 +518,8 @@ try:
                 
             if org_gt_shopping is not None:
                 print(f"Registrant org found for host {host} using webscrape: {org_gt_shopping}")
-                   
+                if org_gt_shopping == '':
+                    print('in if!!!')
             time.sleep(1)
             
         if org_gt_shopping is None or org_gt_shopping.strip() == '':
@@ -845,41 +799,10 @@ except Exception as e:
     print(e)
     
 ################### ExternalHost WHOIS ############################
+# progress_bar = ProgressBar('whois')
+progress_bar.update_progress(0)
+progress_bar.show('whois')
 
-widget = QWidget()
-layout = QVBoxLayout()
-
-progress_dialog = QProgressBar()
-progress_dialog.setFixedHeight(20) 
-progress_dialog.setFixedWidth(500)  
-title_label = QLabel("Making WHOIS Queries")
-
-matching_icon = QLabel()
-icon_path = "/home/herman/human_app_label_testing/whois.png"
-pixmap = QPixmap(icon_path)
-# pixmap = pixmap.scaledToWidth(25)  
-pixmap = pixmap.scaledToHeight(60)  
-matching_icon.setPixmap(pixmap)
-
-
-layout.addWidget(title_label, alignment=Qt.AlignCenter)
-layout.addWidget(matching_icon, alignment=Qt.AlignCenter)
-layout.addWidget(progress_dialog, alignment=Qt.AlignCenter)
-widget.setLayout(layout)
-
-screen_rect = QDesktopWidget().screenGeometry()
-widget_width = 500
-widget_height = 30
-widget.setGeometry(
-    screen_rect.width() // 2 - widget_width // 2,
-    screen_rect.height() // 2 - widget_height // 2,
-    widget_width,
-    widget_height
-)
-
-widget.setWindowFlags(widget.windowFlags() | Qt.WindowStaysOnTopHint)
-
-widget.show()
 total_hosts = len(unique_hosts)
 current_host = 0
 
@@ -887,7 +810,7 @@ for idx, host in enumerate(unique_hosts):
     
     current_host += 1
     progress_percentage = int((current_host / total_hosts) * 100)
-    update_progress(progress_dialog, progress_percentage)
+    progress_bar.update_progress(progress_percentage)
     
     fallback_ip = None
     fallback_whois = False
@@ -946,8 +869,8 @@ for idx, host in enumerate(unique_hosts):
         externalhost_df.loc[externalhost_df['Host'] == host, 'Organization_tolower_stripped'] =  organization.split()[0].lower()
         
         
-update_progress(progress_dialog, 100)
-widget.close()
+progress_bar.update_progress(100)
+progress_bar.close()
     
 ################## Org Assignment (gt) ######################################
 dfs_to_concat = []
@@ -1185,7 +1108,9 @@ result_df2 = result_df2.drop(columns=columns_to_drop)
 
 # Save output
 if debugging:
-    result_df2.to_csv('/home/herman/human_app_label_testing/merged_conn_6676.csv', index=False) 
+    # result_df2.to_csv('/home/herman/human_app_label_testing/merged_conn_6676.csv', index=False) 
+    result_df2.to_csv('/home/herman/human_app_label_testing/merged_connections_23952_20240410035036.csv', index=False) 
+
 
 else:
     result_df2.to_csv(f'/opt/firefox/human_app_label/NativeApp/mergedOutput/merged_connections_{pid}_{timestamp}.csv', index=False)
