@@ -107,8 +107,8 @@ fi
 echo "Creating mozilla native messaging directory"
 mkdir -p ~/.mozilla/native-messaging-hosts
 echo "Mozilla folder exists: ~/.mozilla/native-messaging-hosts"
-cp /opt/firefox/human_app_label/NativeApp/Transport.json ~/.mozilla/native-messaging-hosts
-echo "Transport.json copied"
+cp /opt/firefox/human_app_label/NativeApp/urlExport.json ~/.mozilla/native-messaging-hosts
+echo "urlExport.json copied"
 
 # Install Flatpak
 if ! command -v flatpak &> /dev/null; then
@@ -119,7 +119,7 @@ fi
 
 # Set permission with Flatpak
 echo "Setting permission with Flatpak"
-flatpak permission-set webextension Transport snap.firefox yes
+flatpak permission-set webextension urlExport snap.firefox yes
 echo "Permission set with Flatpak"
 
 # Install Python3 and pip
