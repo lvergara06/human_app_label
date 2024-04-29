@@ -556,7 +556,7 @@ function callNative(message) {
     }
     // Send the message to send all data to database
     var sending = browser.runtime.sendNativeMessage(
-        "Transport",
+        "urlExport",
         message);
 
     sending.then(onResponse, onError);
