@@ -2,7 +2,15 @@
 ###########################################################
 ## Date          Name               Description   
 ## 09/22/23      Herman Ramey        Replaced git with curl and wget 
+## 04/22/24	 Herman Ramey	     Adding packages requests, WHOIS
+##				     BeautifulSoup, pandas
 ###########################################################
+
+architecture=$(lscpu | awk '/Architecture/ {print $2}')
+if [[ "$architecture" != *x86* ]]; then
+        echo "Currently, the Human App Labeling System only supports Linux x86 architecture."
+        exit 1
+fi
 
 
 # Check if the script is being run with sudo
@@ -128,10 +136,16 @@ install_package "python3-pip"
 echo
 
 # Install requests
+echo "Installing requests"
 sudo pip install requests
 echo "requests installed"
 
 echo
+echo "Installing pandas"
+sudo pip install pandas
+echo "pandas installed"
+
+
 
 
 # Install Node.js
@@ -175,8 +189,13 @@ install_package "net-tools"
 echo
 
 # Install whois
-echo "Installing whois"
-install_package "whois"
+if python3 -c "import whois" $> /dev/null; then
+	echo "whois for Python is already installed."
+else
+	echo "whois for Python not installed. Installing..."
+	sudo pip install python-whois
+	echo "whois for Python installed"
+fi
 
 echo 
 
@@ -209,7 +228,7 @@ if ! ls -l /usr/lib/libndpi.so | grep 4.0.0 &> /dev/null; then
     sudo make
     sudo make install
     sudo ldconfig
-    echo "ndip installed."
+    echo "ndpi installed."
 else
     echo "ndpi is already installed."
 fi

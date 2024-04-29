@@ -1,7 +1,7 @@
 {
-  "name": "Transport",
+  "name": "urlExport",
   "description": "Send transport layer information from firefox to database",
-  "path": "/opt/firefox/human_app_label/NativeApp/Transport.py",
+  "path": "/opt/firefox/human_app_label/NativeApp/urlExport.py",
   "type": "stdio",
   "allowed_extensions": [ "drmcgarry@networking" ]
 }

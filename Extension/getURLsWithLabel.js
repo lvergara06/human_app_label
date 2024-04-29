@@ -1,9 +1,9 @@
 
 /*****************************************************************
- * Background.js
+ * getURLsWithLabel.js
  *     This extenstion opens a dialog box to the
  *     user. On user selection the extension sends traffic info
- *     to storage via a navtive app called Transport.py
+ *     to storage via a navtive app called urlExport.py
  *     This extension extends the various APIs provided by Firefox
  *     on the different events of a request. Each event is analized
  *     for important information on the request or response headers. 
@@ -33,9 +33,7 @@
  *                           not match the domain name of the webpage that fired the request, 
  *                           it will logged as an external host. Otherwise, network operation.
  *                           External hosts can be useful to identify ads and other robots.
- * 20240102 - Herman Ramey - User selections are now held in a working dictionary to be used 
- *                           for reference later on when assigning label (Human label vs 'External
- *                           Host').
+ * 20240102 - Herman Ramey - Implementing code to place user selections in array userSels
  ****************************************************************/
 
 /*****************************************************************
@@ -360,7 +358,7 @@ async function logOnCompleted(eventDetails) {
                     // Whenever the user selects something on the pop up we can 
                     // retrieve the request id from its titile.
                     browser.windows.create({
-                        type: "popup", url: "/popup.html",
+                        type: "popup", url: "/getHumanAppLabel.html",
                         top: 0, left: 0, width: 400, height: 300,
                         titlePreface: "%" + requestHandle.id + "%"
                     });

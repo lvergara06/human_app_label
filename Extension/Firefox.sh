@@ -4,7 +4,7 @@
 ###########################################
 ## Name : Firefox
 ## Desc : This script runs Firefox Extension
-##        and merges the output with 
+##        and urltoflowmatch the output with 
 ##        pmacctd output. 
 ## ########################################
 ## Luis Vergara 09/10/23 Rework and lazy logs
@@ -15,6 +15,9 @@
 ## Luis Vergara 09/26/23 Handle when pmacctd
 ##                       or nfacctd fail to start
 ##
+## Herman Ramey 04/25/24 Implementing logic to 
+##                       allow user to specify 
+##                       interface for pmacct
 ###########################################
 CurrentPID=$$
 timestamp=$(date -u +"%Y%m%d%H%M%S")
@@ -43,9 +46,13 @@ function extract_string_after_argument {
     fi
 }
 
+############################################
+### PROCESS    : 000 Started  
+### DESCRIPTION: To check if firefox extension is running                 
+############################################
 
 echo "###########################################" >> $OutLog
-echo "## JOBSTEP: 000 Started                    " >> $OutLog
+echo "## PROCESS: 000 Started                    " >> $OutLog
 echo "###########################################" >> $OutLog
 echo >> $OutLog
 echo >> $OutLog
@@ -75,17 +82,17 @@ fi
 echo "" >> $OutLog
 echo "" >> $OutLog
 echo "###########################################" >> $OutLog
-echo "## JOBSTEP: 000 Finished                   " >> $OutLog
+echo "## PROCESS: 000 Finished                   " >> $OutLog
 echo "###########################################" >> $OutLog
 echo >> $OutLog
 echo >> $OutLog
 
 ###########################################
-## JOBSTEP : 005
-## Desc    : Get timestamp 
+## PROCESS    : 005
+## DESCRIPTION: To get timestamp 
 ###########################################
 echo "###########################################" >> $OutLog
-echo "## JOBSTEP: 005 Started                    " >> $OutLog
+echo "## PROCESS: 005 Started                    " >> $OutLog
 echo "###########################################" >> $OutLog
 echo >> $OutLog
 echo >> $OutLog
@@ -102,18 +109,17 @@ echo "start time: $startTime" >> $OutLog
 echo "" >> $OutLog
 echo "" >> $OutLog
 echo "###########################################" >> $OutLog
-echo "## JOBSTEP: 005 Finished                   " >> $OutLog
+echo "## PROCESS: 005 Finished                   " >> $OutLog
 echo "###########################################" >> $OutLog
 echo >> $OutLog
 echo >> $OutLog
 
 ###########################################
-## JOBSTEP : 010
-## Desc    : Start pmacctd and nfacctd
-##           are running. 
+## PROCESS    : 010
+## DESCRIPTION: TO start pmacctd and nfacctd, and check if these folders exist (logs, tmp, flows), if not create them
 ###########################################
 echo "###########################################" >> $OutLog
-echo "## JOBSTEP: 010 Started                    " >> $OutLog
+echo "## PROCESS: 010 Started                    " >> $OutLog
 echo "###########################################" >> $OutLog
 echo >> $OutLog
 echo >> $OutLog
@@ -122,15 +128,17 @@ echo "" >> $OutLog
 
 ## Run pmacctd
 echo "Starting pmacctd" >> $OutLog
-# You can specify the pmacctd file to use in Transport.conf or else
+# You can specify the pmacctd file to use in hals.conf or else
 # this job can run pmacctd using some configuration files built into the repository
 # The configuration of the switch could be different. Open the .conf file below to
 # Change the configuration.
-transportConf="/opt/firefox/human_app_label/NativeApp/Transport.conf"
+halsConf="/opt/firefox/human_app_label/NativeApp/hals.conf"
 pmacctdDefault="/opt/firefox/human_app_label/pmacct/pmacctd.conf"
 pmacctdLogs="/opt/firefox/human_app_label/pmacct/logs"
+pmacctdDefaultInterface="enp0s3"
 pmacctdConf=""
 pmacctdOutFile=""
+pmacctdInterface=""
 # Check if the folder exists
 if [ ! -d "/opt/firefox/human_app_label/pmacct/logs" ]
 then
@@ -138,17 +146,21 @@ then
     mkdir -p "/opt/firefox/human_app_label/pmacct/logs"
 fi
 
-echo "Looking in $transportConf for pmacctd configuration file path" >> $OutLog
+echo "Looking in $halsConf for pmacctd configuration file path" >> $OutLog
 
-# Check if the Transport.conf file exists
-if [ ! -f "$transportConf" ]
+# Check if the hals.conf file exists
+if [ ! -f "$halsConf" ]
 then
-    echo "Transport.conf does not exist" >> $OutLog
+    # echo "Hello" >> $OutLog
+    echo "hals.conf does not exist" >> $OutLog
     echo "Using default pmacctd location : $pmacctdDefault"
     pmacctdConf="$pmacctdDefault"
 else
     # Check if the "-d" argument exists in the file
-    pmacctdConf=$(extract_string_after_argument "-d" "$transportConf")
+    pmacctdConf=$(extract_string_after_argument "-d" "$halsConf")
+    pmacctdInterface=$(extract_string_after_argument "-i" "$halsConf")
+
+
     # Check if the extracted string is a valid file
     if [ -n "$pmacctdConf" ] && [ -f "$pmacctdConf" ]
     then
@@ -159,8 +171,17 @@ else
         echo "Using default pmacctd file: $pmacctdConf" >> $OutLog
     fi
 
+    if [ -n "$pmacctdInterface" ] && ifconfig "$pmacctdInterface"  &>/dev/null
+    then
+        echo "Listening on interface: $pmacctdInterface" >> $OutLog 
+    else
+        echo "Network interface [$pmacctdInterface] not found or invalid" >> $OutLog
+        pmacctdInterface="$pmacctdDefaultInterface"
+        echo "Listening on default interface $pmacctdInterface" >> $OutLog
+    fi
+
     # Check if the "-do" argument exists in the file
-    pmacctdOutFile=$(extract_string_after_argument "-do" "$transportConf")
+    pmacctdOutFile=$(extract_string_after_argument "-do" "$halsConf")
     # Check if the extracted string is a valid file
     if [ -n "$pmacctdOutFile" ] && [ -f "$pmacctdOutFile" ]
     then
@@ -175,7 +196,8 @@ else
 fi
 
 echo "start time : $timestamp" >> "$pmacctdOutFile"
-nohup sudo pmacctd -f "$pmacctdConf" >> "$pmacctdOutFile" 2>&1 &
+nohup sudo pmacctd -i "$pmacctdInterface " -f "$pmacctdConf" >> "$pmacctdOutFile" 2>&1 &
+
 pmacctdPid=$!  # Capture the process ID of the last background command
 # Store the PID in a file for future reference if needed
 #echo "$pmacctdPid" > "/tmp/pmacctd_pid.txt"
@@ -187,10 +209,10 @@ echo "" >> $OutLog
 ##
 ##
 echo "Starting nfacctd" >> $OutLog
-# You can specify the nfacctd file to use in Transport.conf or else
+# You can specify the nfacctd file to use in hals.conf or else
 # this job can run nfacctd using some configuration files built into the repository.
 # Open the .conf file below to change the configuration.
-transportConf="/opt/firefox/human_app_label/NativeApp/Transport.conf"
+halsConf="/opt/firefox/human_app_label/NativeApp/hals.conf"
 nfacctdDefault="/opt/firefox/human_app_label/pmacct/nfacctd.conf"
 nfacctdLogs="/opt/firefox/human_app_label/pmacct/logs"
 nfacctdTmp="/opt/firefox/human_app_label/pmacct/tmp"
@@ -213,17 +235,17 @@ then
     mkdir -p "/opt/firefox/human_app_label/pmacct/flows"
 fi
 
-echo "Looking in $transportConf for nfacctd file path" >> $OutLog
+echo "Looking in $halsConf for nfacctd file path" >> $OutLog
 
-# Check if the Transport.conf file exists
-if [ ! -f "$transportConf" ]
+# Check if the hals.conf file exists
+if [ ! -f "$halsConf" ]
 then
-    echo "Transport.conf does not exist" >> $OutLog
+    echo "hals.conf does not exist" >> $OutLog
     echo "Using default nfacctd location : $nfacctdDefault" >> $OutLog
     nfacctdConf="$nfacctdDefault"
 else
     # Check if the "-n" argument exists in the file
-    nfacctdConf=$(extract_string_after_argument "-n" "$transportConf")
+    nfacctdConf=$(extract_string_after_argument "-n" "$halsConf")
     # Check if the extracted string is a valid file
     if [ -n "$nfacctdConf" ] && [ -f "$nfacctdConf" ]
     then
@@ -237,7 +259,7 @@ else
     fi
 
     # Check if the "-n" argument exists in the file
-    nfacctdOutFile=$(extract_string_after_argument "-no" "$transportConf")
+    nfacctdOutFile=$(extract_string_after_argument "-no" "$halsConf")
     # Check if the extracted string is a valid file
     if [ -n "$nfacctdOutFile" ] && [ -f "$nfacctdOutFile" ]
     then
@@ -279,38 +301,38 @@ echo >> $OutLog
 echo "" >> $OutLog
 echo "" >> $OutLog
 echo "###########################################" >> $OutLog
-echo "## JOBSTEP: 010 Finished                   " >> $OutLog
+echo "## PROCESS: 010 Finished                   " >> $OutLog
 echo "###########################################" >> $OutLog
 echo >> $OutLog
 echo >> $OutLog
 
 ###########################################
-## JOBSTEP : 020
-## Desc    : Extract the print_output_file
-##           from nfacctd.conf
+## PROCESS    : 015
+## DESCRIPTION: Extract the print_output_file from nfacctd.conf
 ###########################################
+
 # echo "###########################################" >> $OutLog
-# echo "## JOBSTEP: 020 Started                    " >> $OutLog
+# echo "## PROCESS: 015 Started                    " >> $OutLog
 # echo "###########################################" >> $OutLog
 # echo >> $OutLog
 # echo >> $OutLog
 
-# Look for the path to nfacctd.conf file in Transport.conf
+# Look for the path to nfacctd.conf file in hals.conf
 # If it is missing at this point we are left we somewhat
 # of an orphaned output but we don't let this stop us now.
 
-# transportConf=/opt/firefox/human_app_label/NativeApp/Transport.conf
+# halsConf=/opt/firefox/human_app_label/NativeApp/hals.conf
 # nfacctdConf=""
 # flowsOutput=""
 # flowsBefore=""
 
-# # Check if the Transport.conf file exists
-# if [ ! -f "$transportConf" ]
+# # Check if the hals.conf file exists
+# if [ ! -f "$halsConf" ]
 # then
-#     echo "Transport.conf does not exist" >> $OutLog
+#     echo "hals.conf does not exist" >> $OutLog
 # else
-#     # Check if -n exists in the Transport.conf file.
-#     nfacctdConf=$(extract_string_after_argument "-n" "$transportConf")
+#     # Check if -n exists in the hals.conf file.
+#     nfacctdConf=$(extract_string_after_argument "-n" "$halsConf")
 #     if [ -n "$nfacctdConf" ] && [ -f "$nfacctdConf" ]
 #     then
 #         echo "Using nfacctd file: $nfacctdConf" >> $OutLog
@@ -338,24 +360,24 @@ echo >> $OutLog
 ### End
 
 # echo "###########################################" >> $OutLog
-# echo "## JOBSTEP: 020 Finished                   " >> $OutLog
+# echo "## PROCESS: 015 Finished                   " >> $OutLog
 # echo "###########################################" >> $OutLog
 # echo >> $OutLog
 # echo >> $OutLog
 
 
 ###########################################
-## JOBSTEP : 030
-## Desc    : Run the Firefox Extension
+## PROCESS    : 020
+## DESCRIPTION: To run the Firefox Extension
 ###########################################
 echo "###########################################" >> $OutLog
-echo "## JOBSTEP: 030 Started                    " >> $OutLog
+echo "## PROCESS: 020 Started                    " >> $OutLog
 echo "###########################################" >> $OutLog
 echo >> $OutLog
 echo >> $OutLog
-connections=""
-connectionsWork=""
-connectionsDefault=/opt/firefox/human_app_label/NativeApp/output/connections.csv
+urlstream=""
+urlstreamWork=""
+urlstreamDefault=/opt/firefox/human_app_label/NativeApp/output/urlstream.csv
 ## Executing
 # Check if this already running. Don't run multiple of these
 echo "pgrep -f 'node /usr/local/bin/web-ext' >/dev/null" >> $OutLog
@@ -407,30 +429,30 @@ else
     echo >> $OutLog
     echo >> $OutLog
     #
-    ## Let's go ahead and take the connections file and put it in 
+    ## Let's go ahead and take the urlstream file and put it in 
     # a more stable place
     # Check if the "-c" argument exists in the file
-    connections=$(extract_string_after_argument "-c" "$file_path")
+    urlstream=$(extract_string_after_argument "-c" "$file_path")
     # Check if the extracted string is a valid file
-    if [ -n "$connections" ] && [ -f "$connections" ]
+    if [ -n "$urlstream" ] && [ -f "$urlstream" ]
     then
-        #echo "$connections is valid" >> $OutLog
-        echo "Using connections file: $connections" >> $OutLog
+        #echo "$urlstream is valid" >> $OutLog
+        echo "Using urlstream file: $urlstream" >> $OutLog
     else
-        #echo "connections.csv from .conf file not found or invalid" >> $OutLog
-        connections=$connectionsDefault 
-        echo "Using default connections file: $connections" >> $OutLog
+        #echo "urlstream.csv from .conf file not found or invalid" >> $OutLog
+        urlstream=$urlstreamDefault 
+        echo "Using default urlstream file: $urlstream" >> $OutLog
     fi
 
-    connectionsWork=/opt/firefox/human_app_label/NativeApp/work/connections.$CurrentPID.$timestamp.csv
-    cp $connections $connectionsWork >> $OutLog
+    urlstreamWork=/opt/firefox/human_app_label/NativeApp/work/urlstream.$CurrentPID.$timestamp.csv
+    cp $urlstream $urlstreamWork >> $OutLog
     #
     ## Make certain that the copy worked before delete
-    if [ -n "$connectionsWork" ] && [ -f "$connectionsWork" ]
+    if [ -n "$urlstreamWork" ] && [ -f "$urlstreamWork" ]
     then    
-        echo $connections copied to $connectionsWork >> $OutLog
-        rm $connections
-        echo "$connections removed." >> $OutLog
+        echo $urlstream copied to $urlstreamWork >> $OutLog
+        rm $urlstream
+        echo "$urlstream removed." >> $OutLog
     fi
     # # Check if the server is running
     # if pid=$(pgrep -f "node /opt/firefox/human_app_label/Extension/server.js"); then
@@ -447,24 +469,24 @@ fi
 echo >> $OutLog
 echo >> $OutLog
 echo "###########################################" >> $OutLog
-echo "## JOBSTEP: 030 Finished                   " >> $OutLog
+echo "## PROCESS: 020 Finished                   " >> $OutLog
 echo "###########################################" >> $OutLog
 echo >> $OutLog
 echo >> $OutLog
 
 ###########################################
-## JOBSTEP : 040
-## Desc    : Get diff of flows.out
+## PROCESS    : 025
+## DESCRIPTION: To get different url and match them to flows
 ###########################################
 # echo "###########################################" >> $OutLog
-# echo "## JOBSTEP: 040 Started                    " >> $OutLog
+# echo "## PROCESS: 025 Started                    " >> $OutLog
 # echo "###########################################" >> $OutLog
 # echo >> $OutLog
 # echo >> $OutLog
 
 # ## Executing
 
-# # Start a delay before auto running merge.py 
+# # Start a delay before auto running urltoflowmatch.py 
  echo sleep 5 min >> $OutLog
  sleep 300
  echo "Killing pmacctd PID: $pmacctdPid" >> $OutLog
@@ -493,17 +515,17 @@ echo >> $OutLog
 # ### End
 
 # echo "###########################################" >> $OutLog
-# echo "## JOBSTEP: 040 Finished                   " >> $OutLog
+# echo "## PROCESS: 025 Finished                   " >> $OutLog
 # echo "###########################################" >> $OutLog
 # echo >> $OutLog
 # echo >> $OutLog
 
 ###########################################
-## JOBSTEP : 050
-## Desc    : Get timestamp 
+## PROCESS    : 030
+## DESCRIPTION: To get timestamp 
 ###########################################
 echo "###########################################" >> $OutLog
-echo "## JOBSTEP: 050 Started                    " >> $OutLog
+echo "## PROCESS: 030 Started                    " >> $OutLog
 echo "###########################################" >> $OutLog
 echo >> $OutLog
 echo >> $OutLog
@@ -521,39 +543,39 @@ echo "end time: $endtimestamp" >> $OutLog
 echo >> $OutLog
 echo >> $OutLog
 echo "###########################################" >> $OutLog
-echo "## JOBSTEP: 050 Finished                   " >> $OutLog
+echo "## PROCESS: 030 Finished                   " >> $OutLog
 echo "###########################################" >> $OutLog
 echo >> $OutLog
 echo >> $OutLog
 
 ###########################################
-## JOBSTEP : 060
-## Desc    : Merge the outputs
+## PROCESS    : 035
+## DESCRIPTION: Match the url to flows and get the outputs
 ###########################################
 echo "###########################################" >> $OutLog
-echo "## JOBSTEP: 060 Started                    " >> $OutLog
+echo "## PROCESS: 035 Started                    " >> $OutLog
 echo "###########################################" >> $OutLog
 echo >> $OutLog
 echo >> $OutLog
 
-mergedOut=/opt/firefox/human_app_label/NativeApp/mergedOutput/merged_connections_$CurrentPID.$timestamp.csv
+urltoflowmatchOut=/opt/firefox/human_app_label/NativeApp/mergedOutput/urltoflowmatch_urlstream_$CurrentPID.$timestamp.csv
 ##
-# The end game! If we have a diff then we can do a merge
-# Let's also check the connections file is good
-if [ -n "$flowsOutput" ] && [ -f "$flowsOutput" ] && [ -n "$connectionsWork" ] && [ -f "$connectionsWork" ]
+# The end game! If we have a diff then we can do a urltoflowmatch
+# Let's also check the urlstream file is good
+if [ -n "$flowsOutput" ] && [ -f "$flowsOutput" ] && [ -n "$urlstreamWork" ] && [ -f "$urlstreamWork" ]
 then
-    echo "running python3 /opt/firefox/human_app_label/NativeApp/Merge.py $connectionsWork $flowsOutput $timestamp $CurrentPID >> $mergedOut" >> $OutLog
-    python3 /opt/firefox/human_app_label/NativeApp/Merge.py $connectionsWork $flowsOutput $timestamp $CurrentPID 
+    echo "running python3 /opt/firefox/human_app_label/NativeApp/urltoflowmatch.py $urlstreamWork $flowsOutput $timestamp $CurrentPID >> $urltoflowmatchOut" >> $OutLog
+    python3 /opt/firefox/human_app_label/NativeApp/urltoflowmatch.py $urlstreamWork $flowsOutput $timestamp $CurrentPID 
 else
-    echo "Merge could not be done because either flows was not found or connections was not found" >> $OutLog
+    echo "urltoflowmatch could not be done because either flows was not found or urlstream was not found" >> $OutLog
     echo "Make sure that [$flowsOutput] exists" >> $OutLog
-    echo "Or make sure that [$connectionsWork] was created by the extension" >> $OutLog
+    echo "Or make sure that [$urlstreamWork] was created by the extension" >> $OutLog
 fi
 
 echo >> $OutLog
 echo >> $OutLog
 echo "###########################################" >> $OutLog
-echo "## JOBSTEP: 060 Finished                   " >> $OutLog
+echo "## PROCESS: 035 Finished                   " >> $OutLog
 echo "###########################################" >> $OutLog
 echo >> $OutLog
 echo >> $OutLog

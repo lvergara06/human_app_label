@@ -14,9 +14,9 @@
 # 03/12/2024   Herman Ramey      No longer using netstat snapshots. 
 # 04/11/2024   Herman Ramey      Inserting header values for connections file
 #                                and changing order of output data
-# 04/09/2024   Herman Ramey      Host-level information (domain.tld) to identify
+# 04/26/2024   Herman Ramey      Host-level information (domain.tld) to identify
 #                                in connections file is not descriptive enough;
-#                                Extracting https url now as URL  
+#                                Extracting URL in addition to host name
 ######################################################################
 import sys
 import json
@@ -29,14 +29,14 @@ import datetime
 import csv
 import re
 
-linuxConfigFile = "/opt/firefox/human_app_label/NativeApp/Transport.conf" ## This file has the line arguments for linux
+linuxConfigFile = "/opt/firefox/human_app_label/NativeApp/hals.conf" ## This file has the line arguments for linux
         # linuxConfigFile should contain some of these options in line form i.e. -j json.json -c csv.csv -l /tmp/options.txt
         # -E : Extended information - Default is to only get the minimum amount of data from the extension. If you want all the request headers and responses use -E 'All'
         # -l : Options file
         # -j : JSON file
         # -c : CSV file
-defaultJsonFile = "/opt/firefox/human_app_label/NativeApp/connections.json"
-defaultCsvFile = "/opt/firefox/human_app_label/NativeApp/connections.csv"
+defaultJsonFile = "/opt/firefox/human_app_label/NativeApp/urlstream.json"
+defaultCsvFile = "/opt/firefox/human_app_label/NativeApp/urlstream.csv"
 snapsDir = "/opt/firefox/human_app_label/NativeApp/snaps"
 outDir = "/opt/firefox/human_app_label/NativeApp/output"
 logsDir = "/opt/firefox/human_app_label/NativeApp/logs"
@@ -275,10 +275,11 @@ try:
         originUrl = receivedMessage['dataIn']['originUrl']
         destinationIp = receivedMessage['dataIn']['destinationIp']
         destinationPort = receivedMessage['dataIn']['destinationPort']
-        host = receivedMessage['dataIn']['url']
+        host_url = receivedMessage['dataIn']['url']
+        hostname = receivedMessage['dataIn']['host']
         errorMsg = ""
-        output_file_json = f"{outDir}/connections.json"
-        output_file_csv = f"{outDir}/connections.csv"
+        output_file_json = f"{outDir}/urlstream.json"
+        output_file_csv = f"{outDir}/urlstream.csv"
 
         directory = outDir
         os.makedirs(directory, exist_ok=True)
@@ -288,7 +289,8 @@ try:
         utcRead = utc_time.strftime('%Y-%m-%d %H:%M:%S')
         connection = {}
         connection['Timestamp'] = utcRead
-        connection['URL'] = host
+        connection['URL'] = host_url
+        connection['Host'] = hostname
         connection['originURL'] = originUrl
         connection['serverIP'] = destinationIp
         connection['serverPort'] = destinationPort
