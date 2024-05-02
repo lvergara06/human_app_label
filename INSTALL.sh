@@ -298,7 +298,23 @@ if ! sudo visudo -cf /etc/sudoers; then
   exit 1
 fi
 
+interfaces=$(ifconfig | awk '/: flags/{gsub(":","");print$1}')
+
+
 echo
 echo "firefox_human_app_label Installed"
+echo
+echo "Please refer to /opt/firefox/human_app_label/NativeApp/hals.conf to specify  interface you want to use for pmacct by utilizing the -i option."
+if [ -n "$interfaces" ]; then
+    
+    echo "Available interfaces:"
+    echo "$interfaces"
+    echo
+    
+else
+    echo "No interfaces available."
+fi
 
-echo "DONE!"
+
+
+echo "For more information on available options to configure the behavior of the system, please refer to the README.md"
