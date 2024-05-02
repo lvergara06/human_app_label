@@ -304,17 +304,34 @@ interfaces=$(ifconfig | awk '/: flags/{gsub(":","");print$1}')
 echo
 echo "firefox_human_app_label Installed"
 echo
-echo "Please refer to /opt/firefox/human_app_label/NativeApp/hals.conf to specify  interface you want to use for pmacct by utilizing the -i option."
-if [ -n "$interfaces" ]; then
-    
+
+# get available interfaces
+interfaces=$(ifconfig | awk '/: flags/{gsub(":","");print$1}')
+
+while true; do
+    # Prompt user to select an interface
     echo "Available interfaces:"
     echo "$interfaces"
-    echo
-    
-else
-    echo "No interfaces available."
-fi
+    read -p "Please select an interface to use for pmacct from the above list: " selection
 
+    # Validate user input
+    valid=false
+    for interface in $interfaces; do
+        if [ "$selection" = "$interface" ]; then
+            valid=true
+            break
+        fi
+    done
+
+    # If input is valid, append configuration option to hals.conf and break out of loop
+    if [ "$valid" = true ]; then
+        sed -i "s|$| -i \"$selection\"|" /opt/firefox/human_app_label/NativeApp/hals.conf
+        echo "Interface '$selection' has been appended to /opt/firefox/human_app_label/NativeApp/hals.conf"
+        break
+    else
+        echo "Invalid selection. Please choose one of the available interfaces."
+    fi
+done
 
 
 echo "For more information on available options to configure the behavior of the system, please refer to the README.md"
