@@ -138,7 +138,7 @@ echo "Starting pmacctd" >> $OutLog
 # Change the configuration.
 halsConf="/opt/firefox/human_app_label/NativeApp/hals.conf"
 pmacctdDefault="/opt/firefox/human_app_label/pmacct/pmacctd.conf"
-pmacctdLogs="/opt/firefox/human_app_label/pmacct/logs"
+pmacctdLogs="/opt/firefox/human_app_label/logs"
 pmacctdDefaultInterface="enp0s3"
 pmacctdConf=""
 pmacctdOutFile=""
@@ -218,9 +218,8 @@ echo "Starting nfacctd" >> $OutLog
 # Open the .conf file below to change the configuration.
 halsConf="/opt/firefox/human_app_label/NativeApp/hals.conf"
 nfacctdDefault="/opt/firefox/human_app_label/pmacct/nfacctd.conf"
-nfacctdLogs="/opt/firefox/human_app_label/pmacct/logs"
+nfacctdLogs="/opt/firefox/human_app_label/logs"
 nfacctdTmp="/opt/firefox/human_app_label/pmacct/tmp"
-# nfacctdFlows="/opt/firefox/human_app_label/pmacct/flows"
 nfacctdFlows="/opt/firefox/human_app_label/data"
 nfacctdConf=""
 nfacctdOutFile=""
