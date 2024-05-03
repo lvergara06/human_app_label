@@ -4,12 +4,13 @@ import pytz
 import pandas as pd
 import time
 import whois
+import os
 import requests
 from bs4 import BeautifulSoup
 import json
 from urllib.parse import urlparse
 from ProgressBar import ProgressBar 
-debugging = False
+
 
 def whois_lookup(host, fallback_ip, fallback_whois):
     
@@ -175,13 +176,6 @@ def check_duplicate(new_flows, prev_flows):
         return True
     else:
         return False
-    
-def print_df(df):
-    if debugging:
-        with pd.option_context('display.max_rows', None, 'display.max_columns', None):
-            print(df)
-    else:
-        pass
 
 ## Get args
 def getOptions():
@@ -208,12 +202,13 @@ urlstream_file = ""
 flowFile = ""
 timestamp = ""
 pid = ""
-
+debugging = False
+home_dir = os.path.expanduser("~")
 ## Max difference between connection epoch and pcmacct epoch
 ## TODO: Make the timeWindow an option in hals.conf
 timeWindow = 30000
 
-categories_file = '/opt/firefox/human_app_label/NativeApp/data.json'
+categories_file = '/opt/firefox/human_app_label/NativeApp/categories.json'
 
 if debugging:
     urlstream_file = '/opt/firefox/human_app_label/NativeApp/work/urlstream.21058.20240429060059.csv'
@@ -314,8 +309,8 @@ df.columns = ['nDPI Label','SRC_IP','DST_IP','SRC_PORT','DST_PORT','PROTOCOL',\
                                 'Category']
 
 if debugging: 
-    df.to_csv('/home/herman/human_app_label_testing/output/debugging.csv', index = False)
-    # df = pd.read_csv('/home/herman/human_app_label_testing/output/debugging.csv')
+    df.to_csv(f'{home_dir}/debugging.csv', index = False)
+    # df = pd.read_csv(f'{home_dir}/debugging.csv')
 
 
 
@@ -483,13 +478,13 @@ try:
 except Exception as e:
     print(e)
 
-result_df2 = pd.concat([gt_dfs, externalhost_df], ignore_index = True)
+final_df = pd.concat([gt_dfs, externalhost_df], ignore_index = True)
 columns_to_drop = ['Organization_tolower_stripped', 'Origin URL Parsed', 'Host']
 
-result_df2 = result_df2.drop(columns=columns_to_drop)
+final_df = final_df.drop(columns=columns_to_drop)
 
 # Save output
 if debugging:
-    result_df2.to_csv('/home/herman/human_app_label_testing/merged_conn_6676.csv', index=False) 
+    final_df.to_csv(f'{home_dir}/mergedflows_debugging.csv', index=False) 
 else:
-    result_df2.to_csv(f'/opt/firefox/human_app_label/NativeApp/mergedOutput/urltoflowmatch_urlstream_{pid}_{timestamp}.csv', index=False)
+    final_df.to_csv(f'/opt/firefox/human_app_label/data/mergedflows_{pid}_{timestamp}.csv', index=False)

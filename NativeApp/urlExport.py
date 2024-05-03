@@ -17,6 +17,8 @@
 # 04/26/2024   Herman Ramey      Host-level information (domain.tld) to identify
 #                                in connections file is not descriptive enough;
 #                                Extracting URL in addition to host name
+## 05/02/24    Herman Ramey	 Changing output directories for Transport.log
+## 				 and urlStream.csv
 ######################################################################
 import sys
 import json
@@ -35,11 +37,10 @@ linuxConfigFile = "/opt/firefox/human_app_label/NativeApp/hals.conf" ## This fil
         # -l : Options file
         # -j : JSON file
         # -c : CSV file
-defaultJsonFile = "/opt/firefox/human_app_label/NativeApp/urlstream.json"
-defaultCsvFile = "/opt/firefox/human_app_label/NativeApp/urlstream.csv"
-snapsDir = "/opt/firefox/human_app_label/NativeApp/snaps"
-outDir = "/opt/firefox/human_app_label/NativeApp/output"
-logsDir = "/opt/firefox/human_app_label/NativeApp/logs"
+defaultJsonFile = "/opt/firefox/human_app_label/data/urlstream.json"
+defaultCsvFile = "/opt/firefox/human_app_label/data/urlstream.csv"
+outDir = "/opt/firefox/human_app_label/data"
+logsDir = "/opt/firefox/human_app_label/logs"
 allConnectionsDir = "/opt/firefox/human_app_label/NativeApp/allConnections"
 timeStamp = ""
 
@@ -212,7 +213,8 @@ try:
             if line.find("web-ext") >= 0:
                 continue
                 # /opt/firefox/firefox is the Firefox Dev version
-            if line.find("/opt/firefox/firefox") >= 0:
+            # if line.find("/opt/firefox/firefox") >= 0:
+            if line.find("/Firefox.sh") >= 0:
                 mainPID=line
                 break
         split = ' '.join(mainPID.split()).split(' ')        

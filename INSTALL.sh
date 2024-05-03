@@ -1,9 +1,13 @@
 #!/bin/bash
 ###########################################################
 ## Date          Name               Description   
-## 09/22/23      Herman Ramey        Replaced git with curl and wget 
-## 04/22/24	 Herman Ramey	     Adding packages requests, WHOIS
-##				     BeautifulSoup, pandas
+## 09/22/23      Herman Ramey    Replaced git with curl and wget 
+## 04/22/24	 Herman Ramey	 Adding packages requests, WHOIS
+##				 BeautifulSoup, pandas
+## 05/02/24      Herman Ramey    Logic to allow only x86 processors
+##                               to install the system
+## 05/02/24      Herman Ramey    Polling user for pmacct interface
+##                               at end of installation
 ###########################################################
 
 architecture=$(lscpu | awk '/Architecture/ {print $2}')
@@ -91,13 +95,9 @@ if [ ! -d "/opt/firefox/human_app_label" ]; then
     sudo cp -r $TMPDIR/human_app_label/* /opt/firefox/human_app_label
     echo "Copied human_app_label"
     sudo rm -rf $TMPDIR/human_app_label
-    sudo mkdir /opt/firefox/human_app_label/NativeApp/connectionsBkp
-    sudo mkdir /opt/firefox/human_app_label/NativeApp/logs
     sudo mkdir /opt/firefox/human_app_label/logs
-    sudo mkdir /opt/firefox/human_app_label/pmacct/flows
+    sudo mkdir /opt/firefox/human_app_label/data
     sudo mkdir /opt/firefox/human_app_label/pmacct/tmp
-    sudo mkdir /opt/firefox/human_app_label/NativeApp/mergedOutput
-    sudo mkdir /opt/firefox/human_app_label/NativeApp/work
     sudo chmod -R 777 /opt/firefox/human_app_label
     echo "App space created"
 fi
@@ -334,4 +334,4 @@ while true; do
 done
 
 
-echo "For more information on available options to configure the behavior of the system, please refer to the README.md"
+echo "For more information on available options to configure the behavior of the system, please refer to the Quickstart document"

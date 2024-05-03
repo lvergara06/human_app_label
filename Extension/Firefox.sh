@@ -18,10 +18,14 @@
 ## Herman Ramey 04/25/24 Implementing logic to 
 ##                       allow user to specify 
 ##                       interface for pmacct
+## Herman Ramey 05/02/24 Filename changes and changes
+##                       to output directories for 
+##                       logs, urlstream.csv, and 
+##                       mergedflows.csv
 ###########################################
 CurrentPID=$$
 timestamp=$(date -u +"%Y%m%d%H%M%S")
-OutLog=/opt/firefox/human_app_label/logs/Firefox.$timestamp.log
+OutLog=/opt/firefox/human_app_label/logs/Firefox.$CurrentPID.$timestamp.log
 ###########################################
 # HELPER FUNCTIONS
 ###########################################
@@ -216,7 +220,8 @@ halsConf="/opt/firefox/human_app_label/NativeApp/hals.conf"
 nfacctdDefault="/opt/firefox/human_app_label/pmacct/nfacctd.conf"
 nfacctdLogs="/opt/firefox/human_app_label/pmacct/logs"
 nfacctdTmp="/opt/firefox/human_app_label/pmacct/tmp"
-nfacctdFlows="/opt/firefox/human_app_label/pmacct/flows"
+# nfacctdFlows="/opt/firefox/human_app_label/pmacct/flows"
+nfacctdFlows="/opt/firefox/human_app_label/data"
 nfacctdConf=""
 nfacctdOutFile=""
 flowsOutput=""
@@ -229,10 +234,10 @@ then
 fi
 
 # Check if the folder exists
-if [ ! -d "/opt/firefox/human_app_label/pmacct/flows" ] 
+if [ ! -d "/opt/firefox/human_app_label/data" ] 
 then
     # Create the folder if it doesn't exist
-    mkdir -p "/opt/firefox/human_app_label/pmacct/flows"
+    mkdir -p "/opt/firefox/human_app_label/data"
 fi
 
 echo "Looking in $halsConf for nfacctd file path" >> $OutLog
@@ -278,8 +283,8 @@ fi
 cp "$nfacctdConf" "$nfacctdTmp/nfacctd.$pmacctdPid.conf"
 
 # Find the line with "print_output_file: flows.csv" and modify it
-sed -E -i "s#(print_output_file:[[:space:]]*).*#\1$nfacctdFlows/flows.$pmacctdPid.csv#" "$nfacctdTmp/nfacctd.$pmacctdPid.conf"
-flowsOutput=$nfacctdFlows/flows.$pmacctdPid.csv
+sed -E -i "s#(print_output_file:[[:space:]]*).*#\1$nfacctdFlows/flows.$CurrentPID.$timestamp.csv#" "$nfacctdTmp/nfacctd.$pmacctdPid.conf"
+flowsOutput=$nfacctdFlows/flows.$CurrentPID.$timestamp.csv
 echo "Flows Output at [$flowsOutput]" >> $OutLog
 
 # Command to run nfacctd -f $nfacctdFile
@@ -377,7 +382,7 @@ echo >> $OutLog
 echo >> $OutLog
 urlstream=""
 urlstreamWork=""
-urlstreamDefault=/opt/firefox/human_app_label/NativeApp/output/urlstream.csv
+urlstreamDefault=/opt/firefox/human_app_label/data/urlstream.csv
 ## Executing
 # Check if this already running. Don't run multiple of these
 echo "pgrep -f 'node /usr/local/bin/web-ext' >/dev/null" >> $OutLog
@@ -444,7 +449,7 @@ else
         echo "Using default urlstream file: $urlstream" >> $OutLog
     fi
 
-    urlstreamWork=/opt/firefox/human_app_label/NativeApp/work/urlstream.$CurrentPID.$timestamp.csv
+    urlstreamWork=/opt/firefox/human_app_label/data/urlstream.$CurrentPID.$timestamp.csv
     cp $urlstream $urlstreamWork >> $OutLog
     #
     ## Make certain that the copy worked before delete
@@ -558,7 +563,8 @@ echo "###########################################" >> $OutLog
 echo >> $OutLog
 echo >> $OutLog
 
-urltoflowmatchOut=/opt/firefox/human_app_label/NativeApp/mergedOutput/urltoflowmatch_urlstream_$CurrentPID.$timestamp.csv
+# urltoflowmatchOut=/opt/firefox/human_app_label/NativeApp/mergedOutput/mergedflows_$CurrentPID.$timestamp.csv
+urltoflowmatchOut=/opt/firefox/human_app_label/data/mergedflows.$CurrentPID.$timestamp.csv
 ##
 # The end game! If we have a diff then we can do a urltoflowmatch
 # Let's also check the urlstream file is good

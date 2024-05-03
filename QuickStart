@@ -5,7 +5,7 @@
 1) Run Install.sh to download all the needed stuff. Any issues on the install are bound to show up later. Be sure everything is
 installed correctly.
 
-2) Open /opt/firefox/human_app_label/NativeApp/Transport.conf to set the following options.
+2) Open /opt/firefox/human_app_label/NativeApp/hals.conf to set the following options.
 (The options will default if not specified)
 -n /path/to/nfacctd.conf file.            Default /opt/firefox/human_app_label/pmacct/nfacctd.conf
 -d /path/to/pmacctd.conf file.            Default /opt/firefox/human_app_label/pmacct/pmacctd.conf
@@ -20,11 +20,11 @@ installed correctly.
     'ResponseStarted'     -- event details when response is received
     'Completed'           -- event details on request completion
 -l /path/to/options/file                 Default /opt/firefox/human_app_label/NativeApp/options.txt
--j /path/to/output/JSONfile             Default /opt/firefox/human_app_label/NativeApp/output/connections.json
--c /path/to/output/CSVfile              Default /opt/firefox/human_app_label/NativeApp/output/connections.csv
+-j /path/to/output/JSONfile             Default /opt/firefox/human_app_label/data/connections.json
+-c /path/to/output/CSVfile              Default /opt/firefox/human_app_label/data/connections.csv
 
 3) Make sure the pmacctd and nfacctd are running.
 4) Double click on the Blue Firefox icon on your favorites bar.
 5) Browse the internet as usual.
 6) After closing all browser windows you need to wait 5 minutes for pmacctd to finish writing.
-7) Look in /opt/firefox/human_app_label/NativeApp/mergedOutput for the latest file. That should have your output.
+7) Look in /opt/firefox/human_app_label/data for the latest file. That should have your output.
