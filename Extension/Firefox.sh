@@ -22,10 +22,11 @@
 ##                       to output directories for 
 ##                       logs, urlstream.csv, and 
 ##                       mergedflows.csv
+## Herman Ramey 05/06/24 Making filename changes
 ###########################################
 CurrentPID=$$
 timestamp=$(date -u +"%Y%m%d%H%M%S")
-OutLog=/opt/firefox/human_app_label/logs/Firefox.$CurrentPID.$timestamp.log
+OutLog=/opt/firefox/human_app_label/logs/Firefox_${CurrentPID}_${timestamp}.log
 ###########################################
 # HELPER FUNCTIONS
 ###########################################
@@ -282,8 +283,8 @@ fi
 cp "$nfacctdConf" "$nfacctdTmp/nfacctd.$pmacctdPid.conf"
 
 # Find the line with "print_output_file: flows.csv" and modify it
-sed -E -i "s#(print_output_file:[[:space:]]*).*#\1$nfacctdFlows/flows.$CurrentPID.$timestamp.csv#" "$nfacctdTmp/nfacctd.$pmacctdPid.conf"
-flowsOutput=$nfacctdFlows/flows.$CurrentPID.$timestamp.csv
+sed -E -i "s#(print_output_file:[[:space:]]*).*#\1$nfacctdFlows/flows_${CurrentPID}_${timestamp}.csv#" "$nfacctdTmp/nfacctd.$pmacctdPid.conf"
+flowsOutput=$nfacctdFlows/flows_${CurrentPID}_${timestamp}.csv
 echo "Flows Output at [$flowsOutput]" >> $OutLog
 
 # Command to run nfacctd -f $nfacctdFile
@@ -448,7 +449,7 @@ else
         echo "Using default urlstream file: $urlstream" >> $OutLog
     fi
 
-    urlstreamWork=/opt/firefox/human_app_label/data/urlstream.$CurrentPID.$timestamp.csv
+    urlstreamWork=/opt/firefox/human_app_label/data/urlstream_${CurrentPID}_${timestamp}.csv
     cp $urlstream $urlstreamWork >> $OutLog
     #
     ## Make certain that the copy worked before delete
@@ -491,12 +492,12 @@ echo >> $OutLog
 # ## Executing
 
 # # Start a delay before auto running urltoflowmatch.py 
- echo sleep 5 min >> $OutLog
- sleep 300
- echo "Killing pmacctd PID: $pmacctdPid" >> $OutLog
- sudo /opt/firefox/human_app_label/Extension/SudoKillPmacctd.sh $pmacctdPid
- echo "Killing nfacctd PID: $nfacctdPid" >> $OutLog
- kill -9 $nfacctdPid
+echo sleep 5 min >> $OutLog
+sleep 300
+echo "Killing pmacctd PID: $pmacctdPid" >> $OutLog
+sudo /opt/firefox/human_app_label/Extension/SudoKillPmacctd.sh $pmacctdPid
+echo "Killing nfacctd PID: $nfacctdPid" >> $OutLog
+kill -9 $nfacctdPid
  
 # flowsAfter=""
 # flowsDiff=""
@@ -563,7 +564,7 @@ echo >> $OutLog
 echo >> $OutLog
 
 # urltoflowmatchOut=/opt/firefox/human_app_label/NativeApp/mergedOutput/mergedflows_$CurrentPID.$timestamp.csv
-urltoflowmatchOut=/opt/firefox/human_app_label/data/mergedflows.$CurrentPID.$timestamp.csv
+urltoflowmatchOut=/opt/firefox/human_app_label/data/mergedflows_$CurrentPID_$timestamp.csv
 ##
 # The end game! If we have a diff then we can do a urltoflowmatch
 # Let's also check the urlstream file is good

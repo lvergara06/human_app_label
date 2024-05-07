@@ -17,8 +17,9 @@
 # 04/26/2024   Herman Ramey      Host-level information (domain.tld) to identify
 #                                in connections file is not descriptive enough;
 #                                Extracting URL in addition to host name
-## 05/02/24    Herman Ramey	 Changing output directories for Transport.log
-## 				 and urlStream.csv
+## 05/02/24    Herman Ramey	     Changing output directories for Transport.log
+## 				                 and urlStream.csv
+## 05/06/24    Herman Ramey	     Making filename changes
 ######################################################################
 import sys
 import json
@@ -224,7 +225,7 @@ try:
         # -c : CSV file
 
             # Return a log file
-        logFile = f"{logsDir}/Transport." + split[1] + ".log"
+        logFile = f"{logsDir}/Transport_" + split[1] + ".log"
         responseMessage['dataOut'].append(("logFile", logFile))
         logEvent(receivedMessage['state'], [], responseMessage['dataOut'], responseMessage['exitMessage'], logFile)        
         sendMessage(encodeMessage(responseMessage))
